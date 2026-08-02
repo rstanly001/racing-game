@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from racing.exceptions import ConfigurationError
+
 # Fixed simulation timestep, in seconds. The physics integrates at this rate
 # regardless of the render frame rate, so a headless run and an interactive
 # run produce identical results.
@@ -17,6 +19,15 @@ PHYSICS_DT = 1.0 / 60.0
 SCREEN_WIDTH = 1280
 SCREEN_HEIGHT = 720
 TARGET_FPS = 60
+
+# Car body size in pixels, used both for drawing and for collision radii.
+CAR_LENGTH = 34.0
+CAR_WIDTH = 18.0
+
+# How fast a steering input ramps in and falls back to centre, in units of
+# full lock per second. Instant steering feels twitchy; these smooth it.
+STEERING_RAMP = 4.0
+STEERING_RETURN = 6.0
 
 
 @dataclass(frozen=True)
@@ -59,10 +70,37 @@ class VehicleSpec:
     colour: tuple[int, int, int] = (220, 60, 60)
 
     def __post_init__(self) -> None:
-        """Validate the specification."""
-        # TODO: raise ConfigurationError for non-positive speeds or a grip
-        #       value outside [0, 1]
-        raise NotImplementedError
+        """Validate the specification.
+
+        Raises
+        ------
+        ConfigurationError
+            If a name is empty, a rate is not positive, or ``grip`` or
+            ``drag`` falls outside its allowed range.
+        """
+        if not self.name:
+            raise ConfigurationError("a vehicle needs a name")
+
+        positive = {
+            "max_speed": self.max_speed,
+            "acceleration": self.acceleration,
+            "brake_force": self.brake_force,
+            "turn_rate": self.turn_rate,
+        }
+        for field, value in positive.items():
+            if value <= 0:
+                raise ConfigurationError(
+                    f"{self.name}: {field} must be positive, got {value}"
+                )
+
+        if not 0.0 <= self.grip <= 1.0:
+            raise ConfigurationError(
+                f"{self.name}: grip must be between 0 and 1, got {self.grip}"
+            )
+        if self.drag < 0.0:
+            raise ConfigurationError(
+                f"{self.name}: drag must not be negative, got {self.drag}"
+            )
 
 
 @dataclass
