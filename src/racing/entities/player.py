@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from racing.config import STEERING_RAMP, STEERING_RETURN
 from racing.entities.vehicle import Vehicle
 
 
@@ -28,6 +29,11 @@ class PlayerCar(Vehicle):
     def update_controls(self, dt: float, **context: Any) -> None:
         """Read the pressed keys from ``context`` and set the controls.
 
+        Throttle and brake are on or off, but steering is smoothed: holding
+        a key ramps the input toward full lock, and releasing it lets the
+        wheel fall back to centre. Applying full lock on the first frame
+        makes the car feel like it is snapping rather than turning.
+
         Parameters
         ----------
         dt
@@ -36,5 +42,18 @@ class PlayerCar(Vehicle):
             Must contain ``keys``, a container supporting ``in`` that holds
             the names of currently pressed keys, e.g. ``{"up", "left"}``.
         """
-        # TODO: implement; smooth the steering with dt so it ramps in
-        raise NotImplementedError
+        keys = context.get("keys") or ()
+
+        self.throttle = 1.0 if "up" in keys else 0.0
+        self.brake = 1.0 if "down" in keys else 0.0
+
+        target = float("right" in keys) - float("left" in keys)
+        rate = STEERING_RAMP if target else STEERING_RETURN
+        self.steering = _approach(self.steering, target, rate * dt)
+
+
+def _approach(value: float, target: float, step: float) -> float:
+    """Move ``value`` toward ``target`` by at most ``step``."""
+    if abs(target - value) <= step:
+        return target
+    return value + step if target > value else value - step

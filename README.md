@@ -10,6 +10,19 @@ display.
 
 Final project for *Introduction to Python*, TU Dortmund.
 
+## Status
+
+Under active development. Working today:
+
+- Fixed-timestep physics: acceleration, braking, lateral grip, and drag
+- Keyboard driving, with steering that ramps in instead of snapping to lock
+- A window that draws the cars, running the simulation at a fixed 60 Hz
+  regardless of the frame rate
+
+Still to come: the track and its boundaries, the AI opponent, lap timing,
+telemetry recording, and the analysis plots. Until those land, `race` drives
+on open ground, and `simulate`, `analyze`, and `replay` are not yet wired up.
+
 ## Installation
 
 Requires Python 3.10 or newer.

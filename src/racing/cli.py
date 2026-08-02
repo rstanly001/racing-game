@@ -15,7 +15,12 @@ import os
 import sys
 from collections.abc import Sequence
 
+import numpy as np
+
 from racing import __version__
+from racing.config import PHYSICS_DT, SCREEN_HEIGHT, SCREEN_WIDTH, VehicleSpec
+from racing.entities.player import PlayerCar
+from racing.entities.vehicle import Vehicle
 from racing.exceptions import RacingError
 
 logger = logging.getLogger(__name__)
@@ -23,6 +28,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_LAPS = 3
 DEFAULT_TRACK = "oval"
 TRACK_CHOICES = ["oval", "figure_eight", "random"]
+
+# Never advance more than this much simulated time in one frame, so a stall
+# cannot make the car teleport once the process catches up.
+MAX_FRAME_TIME = 0.25
 
 
 def force_headless() -> None:
@@ -77,11 +86,75 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def direction(vector: np.ndarray) -> np.ndarray:
+    """Return the unit vector along ``vector``, or zeros if it has no length."""
+    length = float(np.linalg.norm(vector))
+    return vector / length if length else np.zeros(2)
+
+
+def step_car(car: Vehicle, dt: float) -> None:
+    """Advance one car by a single physics timestep.
+
+    A stand-in for :class:`~racing.physics.engine.PhysicsEngine`, which takes
+    over once there is a track to collide with.
+
+    Parameters
+    ----------
+    car
+        The vehicle to advance. Its controls must already be set.
+    dt
+        Timestep in seconds.
+    """
+    spec = car.spec
+
+    # A stationary car cannot steer; the wheels need something to push against.
+    if car.speed > 1.0:
+        car.heading += car.steering * spec.turn_rate * dt
+
+    car.apply_force(car.forward * spec.acceleration * car.throttle, dt)
+
+    if car.brake and car.speed:
+        # Braking may not push the car backwards, so cap it at a full stop.
+        car.velocity -= direction(car.velocity) * min(
+            spec.brake_force * car.brake * dt, car.speed
+        )
+
+    car.apply_grip(spec.grip)
+    car.velocity *= max(0.0, 1.0 - spec.drag * dt)
+
+    if car.speed > spec.max_speed:
+        car.velocity = direction(car.velocity) * spec.max_speed
+
+    car.integrate(dt)
+
+
 def command_race(args: argparse.Namespace) -> int:
     """Run the interactive game."""
-    # TODO: build track and cars, open the Renderer, run the frame loop,
-    #       save telemetry on exit
-    raise NotImplementedError
+    # Imported here so that pygame's display code is only touched by the one
+    # command that needs a window.
+    from racing.game.renderer import Renderer
+
+    car = PlayerCar(
+        VehicleSpec(name="Red"),
+        position=(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2),
+    )
+    logger.info("Arrow keys to drive, Esc to quit.")
+
+    with Renderer(caption=f"Racing — {car.name}") as renderer:
+        pending = 0.0
+        while renderer.poll_events():
+            pending = min(pending + renderer.tick(), MAX_FRAME_TIME)
+            keys = renderer.pressed_keys()
+
+            # The physics runs at a fixed rate whatever the frame rate is.
+            while pending >= PHYSICS_DT:
+                car.update_controls(PHYSICS_DT, keys=keys)
+                step_car(car, PHYSICS_DT)
+                pending -= PHYSICS_DT
+
+            renderer.draw([car])
+
+    return 0
 
 
 def command_simulate(args: argparse.Namespace) -> int:

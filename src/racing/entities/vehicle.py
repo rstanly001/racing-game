@@ -28,7 +28,7 @@ class Vehicle(PhysicsBody, ABC):
     spec
         Performance characteristics of this car.
     track
-        The track it is racing on.
+        The track it is racing on, or ``None`` to drive on open ground.
     position
         Starting position.
     heading
@@ -51,8 +51,8 @@ class Vehicle(PhysicsBody, ABC):
     def __init__(
         self,
         spec: VehicleSpec,
-        track: Track,
-        position: tuple[float, float],
+        track: Track | None = None,
+        position: tuple[float, float] = (0.0, 0.0),
         heading: float = 0.0,
     ) -> None:
         super().__init__(position=position, heading=heading, mass=1.0)
