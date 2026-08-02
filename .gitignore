@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+.DS_Store
+.idea/
+.vscode/
+
+# Personal planning notes, not part of the package.
+COMMIT_PLAN.md
+
+# Generated figures and telemetry ARE committed on purpose.
+# Do not ignore output/.
