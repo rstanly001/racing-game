@@ -29,6 +29,15 @@ CAR_WIDTH = 18.0
 STEERING_RAMP = 4.0
 STEERING_RETURN = 6.0
 
+# Speed in pixels per second at which the full turn rate becomes available.
+# Below it the car turns proportionally less, so a crawling car cannot spin
+# on the spot, and a standing car cannot steer at all.
+STEERING_FULL_SPEED = 150.0
+
+# Fraction of the turn rate given up at top speed. Cars that steer as hard
+# at 400 as at 150 feel weightless, and make every corner trivial.
+HIGH_SPEED_STABILITY = 0.45
+
 
 @dataclass(frozen=True)
 class VehicleSpec:

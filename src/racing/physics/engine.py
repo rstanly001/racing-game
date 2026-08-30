@@ -7,7 +7,12 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from racing.config import PHYSICS_DT
+from racing.config import (
+    HIGH_SPEED_STABILITY,
+    PHYSICS_DT,
+    STEERING_FULL_SPEED,
+)
+from racing.physics.body import unit
 
 if TYPE_CHECKING:
     from racing.entities.vehicle import Vehicle
@@ -44,20 +49,65 @@ class PhysicsEngine:
         Parameters
         ----------
         vehicles
-            Every vehicle in the race.
+            Every vehicle in the race. Their controls must already be set.
         """
-        # TODO: implement
-        raise NotImplementedError
+        for vehicle in vehicles:
+            self.apply_controls(vehicle)
+            self.apply_drag(vehicle)
+            vehicle.apply_grip(vehicle.spec.grip)
+            vehicle.integrate(self.dt)
+
+        # TODO: resolve track and vehicle collisions once they exist
 
     def apply_controls(self, vehicle: Vehicle) -> None:
-        """Convert a vehicle's throttle, brake, and steering into forces."""
-        # TODO: implement
-        raise NotImplementedError
+        """Convert a vehicle's throttle, brake, and steering into motion.
+
+        Steering rotates the car, and grip is what turns that rotation into
+        a change of direction: the body keeps travelling the old way until
+        :meth:`~racing.physics.body.PhysicsBody.apply_grip` damps the
+        sideways velocity that the rotation just created.
+        """
+        spec = vehicle.spec
+
+        vehicle.heading += (
+            vehicle.steering * spec.turn_rate * self.turn_scale(vehicle) * self.dt
+        )
+
+        if vehicle.throttle:
+            vehicle.apply_force(
+                vehicle.forward * spec.acceleration * vehicle.throttle, self.dt
+            )
+
+        if vehicle.brake and vehicle.speed:
+            # Braking may slow a car to a stop but never drag it backwards.
+            slowing = min(spec.brake_force * vehicle.brake * self.dt, vehicle.speed)
+            vehicle.velocity -= unit(vehicle.velocity) * slowing
+
+    def turn_scale(self, vehicle: Vehicle) -> float:
+        """Return what fraction of the full turn rate is available right now.
+
+        Steering scales with speed in both directions. A stationary car
+        cannot turn at all, because its wheels have nothing to push against;
+        a car near its top speed gives up some of its turn rate, which is
+        what stops fast corners from being free.
+
+        Returns
+        -------
+        float
+            A factor between 0 and 1, applied to ``spec.turn_rate``.
+        """
+        speed = vehicle.speed
+        ramp = min(speed / STEERING_FULL_SPEED, 1.0)
+        taper = 1.0 - HIGH_SPEED_STABILITY * min(speed / vehicle.spec.max_speed, 1.0)
+        return ramp * taper
 
     def apply_drag(self, vehicle: Vehicle) -> None:
-        """Apply air resistance opposing the direction of travel."""
-        # TODO: implement
-        raise NotImplementedError
+        """Apply air resistance and hold the car at or below its top speed."""
+        spec = vehicle.spec
+        vehicle.velocity *= max(0.0, 1.0 - spec.drag * self.dt)
+
+        if vehicle.speed > spec.max_speed:
+            vehicle.velocity = unit(vehicle.velocity) * spec.max_speed
 
     def resolve_track_collision(self, vehicle: Vehicle) -> bool:
         """Push a vehicle back inside the track if it has left it.

@@ -10,6 +10,25 @@ from __future__ import annotations
 import numpy as np
 
 
+def unit(vector: np.ndarray) -> np.ndarray:
+    """Return the unit vector along ``vector``, or zeros if it has no length.
+
+    Parameters
+    ----------
+    vector
+        Any two-element vector.
+
+    Returns
+    -------
+    numpy.ndarray
+        A vector of length one, or ``[0, 0]`` for an input of length zero.
+        Normalising a stationary car's velocity is common enough that
+        returning zeros beats guarding every call site.
+    """
+    length = float(np.linalg.norm(vector))
+    return np.asarray(vector, dtype=float) / length if length else np.zeros(2)
+
+
 class PhysicsBody:
     """A body with a position, a velocity, and a heading.
 
