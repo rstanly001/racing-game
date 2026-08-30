@@ -7,7 +7,7 @@ numpy work.
 
 from __future__ import annotations
 
-import numpy as np  # noqa: F401  (used once the builders are implemented)
+import numpy as np
 
 from racing.track.track import Track
 
@@ -39,9 +39,23 @@ def build_oval(
     -------
     Track
         The generated circuit.
+
+    Examples
+    --------
+    >>> track = build_oval(radius_x=200.0, radius_y=100.0)
+    >>> len(track)
+    180
     """
-    # TODO: implement with np.linspace over [0, 2*pi) and cos/sin
-    raise NotImplementedError
+    # The last angle stops short of a full turn, so the closing segment back
+    # to the first node is the same length as every other one.
+    angles = np.linspace(0.0, 2 * np.pi, n_points, endpoint=False)
+    centre_line = np.column_stack(
+        [
+            centre[0] + radius_x * np.cos(angles),
+            centre[1] + radius_y * np.sin(angles),
+        ]
+    )
+    return Track(name=name, centre_line=centre_line, width=width)
 
 
 def build_figure_eight(
