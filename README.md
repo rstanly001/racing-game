@@ -90,7 +90,7 @@ from racing.telemetry import lap_summary
 from racing.viz import plot_all
 
 track = build_oval()
-spec = VehicleSpec(name="Red", max_speed=420.0, grip=0.92)
+spec = VehicleSpec(name="Red", max_speed=420.0, grip=0.99)
 cars = [
     AICar(spec, track, position=tuple(track.start_position), aggression=0.85),
     AICar(spec, track, position=tuple(track.start_position), aggression=0.70),
@@ -123,6 +123,13 @@ the same seed produces the same race every time, regardless of frame rate.
 **Audio fails soft.** `AudioManager` catches mixer initialisation failure and
 degrades to silence rather than crashing, which is the normal case on a
 machine with no sound device.
+
+**Handling is tuned through `VehicleSpec`, not through the physics code.**
+Drag and acceleration together settle the car just under its top speed, so
+`max_speed` is a safety net rather than a wall it slams into, and the last
+tenth of the speedometer has to be earned. Grip is the fraction of sideways
+velocity shed per second, raised to the timestep, so it means the same thing
+however often the engine steps.
 
 **Telemetry accumulates as plain dicts.** Rows are collected in a list and
 converted to a DataFrame once at the end. Appending to a DataFrame per frame

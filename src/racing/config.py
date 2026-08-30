@@ -32,7 +32,7 @@ STEERING_RETURN = 6.0
 # Speed in pixels per second at which the full turn rate becomes available.
 # Below it the car turns proportionally less, so a crawling car cannot spin
 # on the spot, and a standing car cannot steer at all.
-STEERING_FULL_SPEED = 150.0
+STEERING_FULL_SPEED = 120.0
 
 # Fraction of the turn rate given up at top speed. Cars that steer as hard
 # at 400 as at 150 feel weightless, and make every corner trivial.
@@ -48,7 +48,9 @@ class VehicleSpec:
     name
         Display name, e.g. ``"Red"``.
     max_speed
-        Top speed in pixels per second.
+        Top speed in pixels per second. Drag alone should hold the car just
+        below this, leaving the value itself as a safety net rather than a
+        wall the car slams into.
     acceleration
         Forward acceleration in pixels per second squared.
     brake_force
@@ -57,9 +59,12 @@ class VehicleSpec:
     turn_rate
         Maximum steering rate in degrees per second at full lock.
     grip
-        Lateral friction coefficient between 0 and 1. Lower values slide.
+        Fraction of sideways velocity shed per second, between 0 and 1.
+        ``1`` glues the car to the road, ``0.9`` lets it drift, ``0`` is ice.
     drag
-        Air resistance coefficient applied against velocity.
+        Air resistance, as the fraction of speed lost per second while
+        coasting. Together with ``acceleration`` it sets the top speed:
+        a car settles at ``acceleration / drag``.
     colour
         RGB triple used when rendering.
 
@@ -71,11 +76,11 @@ class VehicleSpec:
 
     name: str
     max_speed: float = 420.0
-    acceleration: float = 260.0
-    brake_force: float = 480.0
+    acceleration: float = 250.0
+    brake_force: float = 420.0
     turn_rate: float = 180.0
-    grip: float = 0.92
-    drag: float = 0.4
+    grip: float = 0.99
+    drag: float = 0.6
     colour: tuple[int, int, int] = (220, 60, 60)
 
     def __post_init__(self) -> None:

@@ -99,22 +99,27 @@ class PhysicsBody:
         """Advance the position by the current velocity over ``dt`` seconds."""
         self.position += self.velocity * dt
 
-    def apply_grip(self, grip: float) -> None:
+    def apply_grip(self, grip: float, dt: float) -> None:
         """Damp the lateral component of velocity.
 
         Splits the velocity into forward and lateral components, keeps the
-        forward part intact, and scales the lateral part by ``grip``. A grip
-        of 1 means no sliding; lower values let the car drift.
+        forward part intact, and bleeds the lateral part away. This is what
+        turns a rotation into a change of direction: without it a car would
+        spin on its axis and carry on travelling the way it was.
 
         Parameters
         ----------
         grip
-            Lateral friction coefficient between 0 and 1.
+            Fraction of sideways velocity removed per second. ``1`` glues the
+            car to the road, ``0.9`` lets it drift, ``0`` is frictionless ice.
+        dt
+            Timestep in seconds. The retained fraction is raised to this
+            power, so grip means the same thing at any timestep.
         """
         forward, right = self.forward, self.right
         along = float(np.dot(self.velocity, forward))
         across = float(np.dot(self.velocity, right))
-        self.velocity = forward * along + right * across * grip
+        self.velocity = forward * along + right * across * (1.0 - grip) ** dt
 
     def distance_to(self, point: np.ndarray) -> float:
         """Return the Euclidean distance from this body to ``point``."""

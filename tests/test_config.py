@@ -5,8 +5,20 @@ import pytest
 from racing import ConfigurationError, VehicleSpec
 
 
-def test_defaults_are_valid() -> None:
-    assert VehicleSpec(name="Red").grip == pytest.approx(0.92)
+def test_the_defaults_build() -> None:
+    assert 0.0 <= VehicleSpec(name="Red").grip <= 1.0
+
+
+def test_brakes_are_stronger_than_the_engine() -> None:
+    spec = VehicleSpec(name="Red")
+    assert spec.brake_force > spec.acceleration
+
+
+def test_drag_alone_holds_the_car_below_its_top_speed() -> None:
+    # Otherwise the car accelerates into the max_speed clamp and stops dead
+    # there, instead of easing up to a speed drag settles it at.
+    spec = VehicleSpec(name="Red")
+    assert spec.acceleration / spec.drag <= spec.max_speed
 
 
 def test_spec_is_frozen(spec: VehicleSpec) -> None:

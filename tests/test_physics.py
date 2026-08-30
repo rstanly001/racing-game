@@ -48,11 +48,30 @@ def test_integration_moves_along_velocity(body: PhysicsBody) -> None:
 
 def test_full_grip_preserves_forward_speed(body: PhysicsBody) -> None:
     body.velocity = body.forward * 100.0
-    body.apply_grip(1.0)
+    body.apply_grip(1.0, 1 / 60)
     assert body.speed == pytest.approx(100.0)
 
 
-def test_grip_removes_lateral_velocity(body: PhysicsBody) -> None:
+def test_full_grip_removes_lateral_velocity(body: PhysicsBody) -> None:
     body.velocity = body.right * 100.0
-    body.apply_grip(0.0)
+    body.apply_grip(1.0, 1 / 60)
     assert body.speed == pytest.approx(0.0)
+
+
+def test_no_grip_leaves_a_slide_untouched(body: PhysicsBody) -> None:
+    body.velocity = body.right * 100.0
+    body.apply_grip(0.0, 1 / 60)
+    assert body.speed == pytest.approx(100.0)
+
+
+def test_grip_means_the_same_at_any_timestep(body: PhysicsBody) -> None:
+    coarse = PhysicsBody(position=(0.0, 0.0))
+    coarse.velocity = coarse.right * 100.0
+    coarse.apply_grip(0.9, 1 / 60)
+
+    fine = PhysicsBody(position=(0.0, 0.0))
+    fine.velocity = fine.right * 100.0
+    for _ in range(4):
+        fine.apply_grip(0.9, 1 / 240)
+
+    assert fine.speed == pytest.approx(coarse.speed)

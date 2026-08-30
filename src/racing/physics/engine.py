@@ -54,7 +54,7 @@ class PhysicsEngine:
         for vehicle in vehicles:
             self.apply_controls(vehicle)
             self.apply_drag(vehicle)
-            vehicle.apply_grip(vehicle.spec.grip)
+            vehicle.apply_grip(vehicle.spec.grip, self.dt)
             vehicle.integrate(self.dt)
 
         # TODO: resolve track and vehicle collisions once they exist
