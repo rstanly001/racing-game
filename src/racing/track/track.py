@@ -21,9 +21,10 @@ MIN_NODES = 3
 class Track:
     """A closed circuit defined by a centre line and a width.
 
-    The outer and inner boundaries are derived by offsetting the centre line
-    perpendicular to its direction of travel, so a track is fully described
-    by a list of points and one width value.
+    Both edges are derived by offsetting the centre line perpendicular to its
+    direction of travel, so a track is fully described by a list of points
+    and one width value. The edges are named left and right rather than outer
+    and inner, since a circuit that crosses itself has no outside.
 
     Parameters
     ----------

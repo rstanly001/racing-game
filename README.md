@@ -14,14 +14,18 @@ Final project for *Introduction to Python*, TU Dortmund.
 
 Under active development. Working today:
 
-- Fixed-timestep physics: acceleration, braking, lateral grip, and drag
+- Fixed-timestep physics: acceleration, braking, lateral grip, and drag,
+  advancing at 60 Hz regardless of the frame rate
+- Steering that scales with speed. A standing car cannot turn at all, and a
+  car near its top speed gives up part of its turn rate, so the oval's
+  corners cannot be taken flat out
 - Keyboard driving, with steering that ramps in instead of snapping to lock
-- A window that draws the cars, running the simulation at a fixed 60 Hz
-  regardless of the frame rate
+- An oval circuit drawn with kerbs and a chequered start line
 
-Still to come: the track and its boundaries, the AI opponent, lap timing,
-telemetry recording, and the analysis plots. Until those land, `race` drives
-on open ground, and `simulate`, `analyze`, and `replay` are not yet wired up.
+Still to come: boundaries that push a car back onto the track, the AI
+opponent, lap timing, telemetry recording, and the analysis plots. Until
+those land, leaving the circuit costs you nothing, and `simulate`,
+`analyze`, and `replay` are not yet wired up.
 
 ## Installation
 
@@ -39,7 +43,7 @@ uv pip install -e .
 uv run -m racing --help
 uv run -m racing simulate --track oval --laps 3 --seed 42
 uv run -m racing analyze --input output/telemetry.csv
-uv run -m racing race --track figure_eight --laps 3
+uv run -m racing race --track oval --laps 3
 uv run -m racing replay --input output/telemetry.csv
 ```
 

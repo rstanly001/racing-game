@@ -11,6 +11,7 @@ import logging
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+import numpy as np
 import pygame
 
 from racing.config import (
@@ -30,10 +31,24 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 GRASS = (32, 92, 48)
+GRASS_DARK = (29, 86, 45)
 ASPHALT = (58, 58, 62)
-KERB = (210, 210, 215)
+ASPHALT_EDGE = (44, 44, 48)
+KERB = (222, 222, 226)
+KERB_RED = (192, 58, 50)
+LINE_LIGHT = (236, 236, 238)
+LINE_DARK = (26, 26, 30)
 TEXT = (240, 240, 240)
-NOSE = (245, 245, 245)
+GLASS = (38, 44, 56)
+HEADLIGHT = (250, 244, 205)
+TAILLIGHT = (132, 32, 28)
+
+# Widths in pixels of the painted details on the track surface.
+GRASS_STRIPE = 96
+KERB_DEPTH = 7
+KERB_SEGMENTS = 3
+START_LINE_DEPTH = 9
+START_LINE_SQUARES = 8
 
 KEY_NAMES = {
     pygame.K_UP: "up",
@@ -41,6 +56,16 @@ KEY_NAMES = {
     pygame.K_LEFT: "left",
     pygame.K_RIGHT: "right",
 }
+
+
+def _point(position: np.ndarray) -> tuple[int, int]:
+    """Return a position rounded to whole pixels, as pygame wants it."""
+    return int(position[0]), int(position[1])
+
+
+def _shade(colour: tuple[int, int, int], factor: float) -> tuple[int, int, int]:
+    """Return ``colour`` darkened or lightened by ``factor``."""
+    return tuple(min(255, max(0, int(channel * factor))) for channel in colour)
 
 
 class Renderer:
@@ -76,6 +101,8 @@ class Renderer:
         self.clock: pygame.time.Clock | None = None
         self.font: pygame.font.Font | None = None
         self._sprites: dict[tuple[int, int, int], pygame.Surface] = {}
+        self._scenery: pygame.Surface | None = None
+        self._scenery_of: Track | None = None
 
     def open(self) -> None:
         """Initialise pygame and create the window.
@@ -102,6 +129,8 @@ class Renderer:
         self.clock = None
         self.font = None
         self._sprites.clear()
+        self._scenery = None
+        self._scenery_of = None
         pygame.quit()
         logger.debug("closed the window")
 
@@ -126,9 +155,88 @@ class Renderer:
         return {name for code, name in KEY_NAMES.items() if pressed[code]}
 
     def draw_track(self, track: Track) -> None:
-        """Draw the track surface, its boundaries, and the start line."""
-        # TODO: implement
-        raise NotImplementedError
+        """Draw the track surface, its kerbs, and the start line.
+
+        Nothing about the scenery moves, so it is painted once onto its own
+        surface and blitted from then on. Redrawing several hundred segments
+        every frame would cost more than the cars do.
+        """
+        if self._scenery is None or self._scenery_of is not track:
+            self._scenery = self._paint_scenery(track)
+            self._scenery_of = track
+            logger.debug("painted the scenery for %r", track.name)
+
+        self._surface().blit(self._scenery, (0, 0))
+
+    def _paint_scenery(self, track: Track) -> pygame.Surface:
+        """Render the grass, the asphalt, the kerbs, and the start line."""
+        scenery = pygame.Surface((self.width, self.height))
+        scenery.fill(GRASS)
+
+        # Mown stripes: without them the infield is a flat green void, and a
+        # car crossing it has nothing to move against.
+        for x in range(0, self.width, 2 * GRASS_STRIPE):
+            pygame.draw.rect(scenery, GRASS_DARK, (x, 0, GRASS_STRIPE, self.height))
+
+        left, right = track.boundaries()
+        self._paint_asphalt(scenery, track)
+        self._paint_kerb(scenery, left)
+        self._paint_kerb(scenery, right)
+        self._paint_start_line(scenery, track, left[0], right[0])
+        return scenery
+
+    def _paint_asphalt(self, scenery: pygame.Surface, track: Track) -> None:
+        """Lay a band of asphalt along the centre line.
+
+        Drawn as one thick segment per pair of nodes, with a disc at each
+        node to fill the wedge that consecutive segments leave open. Doing it
+        this way keeps the seams closed on a track that crosses itself, which
+        a single filled polygon could not.
+        """
+        radius = int(track.width / 2)
+        nodes = [(int(x), int(y)) for x, y in track.centre_line]
+
+        for colour, width in ((ASPHALT_EDGE, radius * 2 + 4), (ASPHALT, radius * 2)):
+            for start, end in zip(nodes, nodes[1:] + nodes[:1], strict=True):
+                pygame.draw.line(scenery, colour, start, end, width)
+            for node in nodes:
+                pygame.draw.circle(scenery, colour, node, width // 2)
+
+    def _paint_kerb(self, scenery: pygame.Surface, edge: np.ndarray) -> None:
+        """Paint an alternating red and white kerb along one track edge."""
+        points = [(int(x), int(y)) for x, y in edge]
+
+        edges = zip(points, points[1:] + points[:1], strict=True)
+        for index, (start, end) in enumerate(edges):
+            colour = KERB if (index // KERB_SEGMENTS) % 2 == 0 else KERB_RED
+            pygame.draw.line(scenery, colour, start, end, KERB_DEPTH)
+
+    def _paint_start_line(
+        self,
+        scenery: pygame.Surface,
+        track: Track,
+        left: np.ndarray,
+        right: np.ndarray,
+    ) -> None:
+        """Paint a chequered band across the track at the start line."""
+        across = (right - left) / START_LINE_SQUARES
+        along = track.tangents()[0] * (START_LINE_DEPTH / 2)
+
+        for row in (-1, 1):
+            for square in range(START_LINE_SQUARES):
+                near = left + across * square + along * (row - 1)
+                far = near + along * 2
+                colour = LINE_LIGHT if (square + row) % 2 else LINE_DARK
+                pygame.draw.polygon(
+                    scenery,
+                    colour,
+                    [
+                        _point(near),
+                        _point(near + across),
+                        _point(far + across),
+                        _point(far),
+                    ],
+                )
 
     def draw_cars(self, cars: Sequence[Vehicle]) -> None:
         """Draw every car as a rotated rectangle in its own colour.
@@ -152,9 +260,9 @@ class Renderer:
         # TODO: implement
         raise NotImplementedError
 
-    def draw(self, cars: Sequence[Vehicle]) -> None:
+    def draw(self, track: Track, cars: Sequence[Vehicle]) -> None:
         """Draw one complete frame and flip the display."""
-        self._surface().fill(GRASS)
+        self.draw_track(track)
         self.draw_cars(cars)
         pygame.display.flip()
 
@@ -171,14 +279,48 @@ class Renderer:
         return self.screen
 
     def _sprite(self, colour: tuple[int, int, int]) -> pygame.Surface:
-        """Return the car sprite for ``colour``, building it once per colour."""
-        if colour not in self._sprites:
-            sprite = pygame.Surface((CAR_WIDTH, CAR_LENGTH), pygame.SRCALPHA)
-            sprite.fill(colour)
-            # A pale strip at the nose, so the heading is readable at a glance.
-            pygame.draw.rect(sprite, NOSE, (0, 0, CAR_WIDTH, CAR_LENGTH * 0.22))
-            self._sprites[colour] = sprite
-        return self._sprites[colour]
+        """Return the car sprite for ``colour``, building it once per colour.
+
+        The car is drawn nose-up, in bands from the front: headlights,
+        bonnet, windscreen, roof, rear window, then dim tail lights. The
+        bright end and the dim end are what make its heading obvious at
+        thirty pixels long.
+        """
+        if colour in self._sprites:
+            return self._sprites[colour]
+
+        length, width = int(CAR_LENGTH), int(CAR_WIDTH)
+        tyre = (max(3, width // 5), max(4, length // 4))
+
+        sprite = pygame.Surface((width + 2 * tyre[0], length), pygame.SRCALPHA)
+        body = pygame.Rect(tyre[0], 0, width, length)
+
+        def band(top: float, bottom: float, inset: int) -> pygame.Rect:
+            """Return a rectangle spanning the car between two length fractions."""
+            return pygame.Rect(
+                body.left + inset,
+                round(length * top),
+                body.width - 2 * inset,
+                round(length * (bottom - top)),
+            )
+
+        for x in (0, body.right):
+            for y in (round(length * 0.13), round(length * 0.65)):
+                pygame.draw.rect(sprite, LINE_DARK, (x, y, *tyre), border_radius=1)
+
+        pygame.draw.rect(sprite, colour, body, border_radius=4)
+        pygame.draw.rect(sprite, _shade(colour, 1.15), band(0.38, 0.64, 1))
+        pygame.draw.rect(sprite, GLASS, band(0.24, 0.38, 2), border_radius=1)
+        pygame.draw.rect(sprite, GLASS, band(0.64, 0.75, 3), border_radius=1)
+        pygame.draw.rect(sprite, _shade(colour, 0.4), body, width=2, border_radius=4)
+
+        lamp = max(3, width // 4)
+        for x in (body.left + 2, body.right - 2 - lamp):
+            pygame.draw.rect(sprite, HEADLIGHT, (x, body.top + 1, lamp, 3))
+            pygame.draw.rect(sprite, TAILLIGHT, (x, body.bottom - 4, lamp, 3))
+
+        self._sprites[colour] = sprite
+        return sprite
 
     def __enter__(self) -> Renderer:
         """Open the window on entering a ``with`` block."""

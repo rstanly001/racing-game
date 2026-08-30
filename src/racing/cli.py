@@ -114,7 +114,7 @@ def command_race(args: argparse.Namespace) -> int:
                 engine.step([car])
                 pending -= PHYSICS_DT
 
-            renderer.draw([car])
+            renderer.draw(track, [car])
 
     return 0
 
