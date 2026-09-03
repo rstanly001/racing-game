@@ -15,5 +15,9 @@ venv/
 # Personal planning notes, not part of the package.
 COMMIT_PLAN.md
 
+# Local dependency resolution. The package declares what it needs in
+# pyproject.toml, which is what an installer reads.
+uv.lock
+
 # Generated figures and telemetry ARE committed on purpose.
 # Do not ignore output/.
