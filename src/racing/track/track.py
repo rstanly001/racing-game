@@ -107,6 +107,26 @@ class Track:
         raise NotImplementedError
 
     @cached_property
+    def segment_lengths(self) -> np.ndarray:
+        """Return the length of every centre-line segment.
+
+        The last entry is the closing segment, from the final node back to
+        the first, so the lengths sum to a whole lap.
+        """
+        edges = np.roll(self.centre_line, -1, axis=0) - self.centre_line
+        return np.linalg.norm(edges, axis=1)
+
+    @cached_property
+    def node_distances(self) -> np.ndarray:
+        """Return how far each node lies from the start line, along the lap."""
+        return np.concatenate([[0.0], np.cumsum(self.segment_lengths)[:-1]])
+
+    @property
+    def lap_length(self) -> float:
+        """Return the length of one lap, in pixels."""
+        return float(self.segment_lengths.sum())
+
+    @cached_property
     def checkpoint_indices(self) -> np.ndarray:
         """Return the centre-line indices the checkpoints sit on."""
         spacing = len(self.centre_line) / self.n_checkpoints
@@ -205,8 +225,15 @@ class Track:
         float
             Distance in pixels.
         """
-        deltas = point - self._closest_points(point)
-        return float(np.sqrt(np.einsum("ij,ij->i", deltas, deltas).min()))
+        _, closest = self._closest(point)
+        return float(np.linalg.norm(np.asarray(point, dtype=float) - closest))
+
+    def _closest(self, point: np.ndarray) -> tuple[int, np.ndarray]:
+        """Return the nearest centre-line segment, and the point on it."""
+        candidates = self._closest_points(point)
+        deltas = np.asarray(point, dtype=float) - candidates
+        index = int(np.argmin(np.einsum("ij,ij->i", deltas, deltas)))
+        return index, candidates[index]
 
     def _closest_points(self, point: np.ndarray) -> np.ndarray:
         """Return the closest point on each centre-line segment to ``point``.
@@ -240,9 +267,22 @@ class Track:
         Used as the x-axis of the speed-trace plot, so two cars can be
         compared at the same point on the circuit rather than at the same
         moment in time.
+
+        Parameters
+        ----------
+        point
+            A single ``(x, y)`` position, on the track or off it.
+
+        Returns
+        -------
+        float
+            Distance from the start line, from zero up to :attr:`lap_length`.
         """
-        # TODO: implement
-        raise NotImplementedError
+        index, closest = self._closest(point)
+        return float(
+            self.node_distances[index]
+            + np.linalg.norm(closest - self.centre_line[index])
+        )
 
     def __len__(self) -> int:
         """Return the number of centre-line nodes."""

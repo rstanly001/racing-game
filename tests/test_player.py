@@ -6,12 +6,12 @@ plain set of key names.
 
 import pytest
 
-from racing import PlayerCar, VehicleSpec
+from racing import PlayerCar, Track, VehicleSpec
 
 
 @pytest.fixture
-def car(spec: VehicleSpec) -> PlayerCar:
-    return PlayerCar(spec, position=(0.0, 0.0))
+def car(spec: VehicleSpec, track: Track) -> PlayerCar:
+    return PlayerCar(spec, track, position=(0.0, 0.0))
 
 
 def test_no_keys_means_no_input(car: PlayerCar) -> None:

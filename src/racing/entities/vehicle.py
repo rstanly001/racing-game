@@ -28,7 +28,7 @@ class Vehicle(PhysicsBody, ABC):
     spec
         Performance characteristics of this car.
     track
-        The track it is racing on, or ``None`` to drive on open ground.
+        The circuit it is racing on.
     position
         Starting position.
     heading
@@ -46,12 +46,14 @@ class Vehicle(PhysicsBody, ABC):
         Laps completed.
     lap_times : list of float
         Elapsed time of each completed lap, in seconds.
+    checkpoint_index : int
+        Index of the next checkpoint this car is allowed to cross.
     """
 
     def __init__(
         self,
         spec: VehicleSpec,
-        track: Track | None = None,
+        track: Track,
         position: tuple[float, float] = (0.0, 0.0),
         heading: float = 0.0,
     ) -> None:
@@ -64,6 +66,7 @@ class Vehicle(PhysicsBody, ABC):
         self.lap = 0
         self.lap_times: list[float] = []
         self.checkpoint_index = 0
+        self.lap_started: float | None = None
         self.collisions = 0
 
     @property
@@ -105,10 +108,30 @@ class Vehicle(PhysicsBody, ABC):
         -------
         bool
             ``True`` if this crossing completed a lap.
+
+        Notes
+        -----
+        Only the next checkpoint in sequence is accepted, so a lap cannot be
+        claimed by reversing over the start line, nor by cutting the corner
+        that a checkpoint sits behind. Crossing checkpoint zero the first
+        time starts the clock rather than completing anything, because cars
+        begin the race sitting on the start line.
         """
-        # TODO: implement — only accept the next checkpoint in sequence, so
-        #       the lap counter cannot be cheated by driving backwards
-        raise NotImplementedError
+        if index != self.checkpoint_index:
+            return False
+
+        self.checkpoint_index = (index + 1) % self.track.n_checkpoints
+        if index != 0:
+            return False
+
+        if self.lap_started is None:
+            self.lap_started = elapsed
+            return False
+
+        self.lap += 1
+        self.lap_times.append(elapsed - self.lap_started)
+        self.lap_started = elapsed
+        return True
 
     @property
     def best_lap(self) -> float | None:

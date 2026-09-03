@@ -107,3 +107,33 @@ def test_invalid_tracks_are_rejected(kwargs: dict, message: str) -> None:
     }
     with pytest.raises(TrackError, match=message):
         Track("Bad", **{**defaults, **kwargs})
+
+
+def test_the_start_line_is_at_zero_lap_distance(track: Track) -> None:
+    assert track.lap_distance(track.start_position) == pytest.approx(0.0)
+
+
+def test_lap_distance_grows_around_the_lap(track: Track) -> None:
+    distances = [track.lap_distance(node) for node in track]
+    assert distances == sorted(distances)
+
+
+def test_lap_distance_never_exceeds_a_lap(track: Track) -> None:
+    assert max(track.lap_distance(node) for node in track) < track.lap_length
+
+
+def test_lap_length_matches_the_summed_segments(track: Track) -> None:
+    assert track.lap_length == pytest.approx(track.segment_lengths.sum())
+
+
+def test_an_oval_is_about_as_long_as_its_ellipse() -> None:
+    # Ramanujan's approximation for the perimeter of an ellipse.
+    a, b = 440.0, 240.0
+    h = (a - b) ** 2 / (a + b) ** 2
+    perimeter = np.pi * (a + b) * (1 + 3 * h / (10 + np.sqrt(4 - 3 * h)))
+    assert build_oval().lap_length == pytest.approx(perimeter, rel=1e-3)
+
+
+def test_a_point_off_track_still_has_a_lap_distance(track: Track) -> None:
+    outside = track.centre_line[20] * 1.5
+    assert 0.0 <= track.lap_distance(outside) <= track.lap_length
