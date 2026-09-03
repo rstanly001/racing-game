@@ -1,31 +1,13 @@
 # Racing
 
-A 2D top-down racing game with a real physics engine, an AI opponent, and a
-telemetry system that records every frame of a race and turns it into
-analysis plots.
+A 2D top-down racing game with a physics engine and lap timing, written as
+an installable Python package.
 
-The game can be played interactively, or simulated headlessly with no window
-at all — which means the analysis works on any machine, with or without a
-display.
+The simulation is kept separate from the rendering: a race is stepped at a
+fixed rate that has nothing to do with the frame rate, which is what will
+later let the same race run with no window at all.
 
 Final project for *Introduction to Python*, TU Dortmund.
-
-## Status
-
-Under active development. Working today:
-
-- Fixed-timestep physics: acceleration, braking, lateral grip, and drag,
-  advancing at 60 Hz regardless of the frame rate
-- Steering that scales with speed. A standing car cannot turn at all, and a
-  car near its top speed gives up part of its turn rate, so the oval's
-  corners cannot be taken flat out
-- Keyboard driving, with steering that ramps in instead of snapping to lock
-- An oval circuit drawn with kerbs and a chequered start line
-
-Still to come: boundaries that push a car back onto the track, the AI
-opponent, lap timing, telemetry recording, and the analysis plots. Until
-those land, leaving the circuit costs you nothing, and `simulate`,
-`analyze`, and `replay` are not yet wired up.
 
 ## Installation
 
@@ -41,23 +23,8 @@ uv pip install -e .
 
 ```bash
 uv run -m racing --help
-uv run -m racing simulate --track oval --laps 3 --seed 42
-uv run -m racing analyze --input output/telemetry.csv
 uv run -m racing race --track oval --laps 3
-uv run -m racing replay --input output/telemetry.csv
 ```
-
-| Command | What it does | Needs a display |
-| --- | --- | --- |
-| `simulate` | Runs an AI-vs-AI race with no window, writes telemetry to CSV | No |
-| `analyze` | Reads telemetry, prints lap summaries, writes plots | No |
-| `race` | Interactive game: you against the AI, with sound | Yes |
-| `replay` | Re-renders a saved race from its telemetry | Yes |
-
-Start with `simulate` followed by `analyze` — together they exercise the
-whole package and produce every figure without needing a screen.
-
-### Controls
 
 | Key | Action |
 | --- | --- |
@@ -66,74 +33,98 @@ whole package and produce every figure without needing a screen.
 | Left / Right | Steer |
 | Esc | Quit |
 
-## Generated output
+The panel in the corner shows the lap counter, speed, last and best lap
+times, and elapsed race time. The finishing order is printed on exit.
 
-No figure is ever displayed interactively; the Agg backend is selected before
-pyplot is imported, and every plot is written to disk.
+## Status
 
-| File | Contents |
-| --- | --- |
-| `output/telemetry.csv` | Per-frame recording: position, speed, inputs, lap |
-| `output/speed_trace.png` | Both cars' speed against lap distance, best laps |
-| `output/racing_line.png` | The path each car drove, coloured by speed |
-| `output/lap_times.png` | Lap time by lap number, one line per car |
-| `output/inputs.png` | Throttle, brake, and steering traces over one lap |
+This is a project under construction, and the sections below describe only
+what is built. Working today:
 
-These files are committed to the repository.
+- Fixed-timestep physics: acceleration, braking, lateral grip and drag,
+  advancing at 60 Hz whatever the frame rate does
+- Steering that scales with speed, so a standing car cannot turn at all and
+  a car near its top speed gives up part of its turn rate
+- An oval circuit drawn with kerbs and a chequered start line
+- Lap counting over checkpoints that have to be crossed in order, with lap
+  times and a finishing order
+
+Not built yet: track boundaries, the computer-controlled opponent, sound,
+telemetry recording, and the analysis plots. The `simulate`, `analyze` and
+`replay` subcommands are placeholders until those land.
 
 ## Using the package as a library
 
+Everything is exported from the top-level package, so the physics and the
+track can be driven without the game:
+
 ```python
-from racing import AICar, GameConfig, Race, VehicleSpec
+from racing import PhysicsEngine, PlayerCar, VehicleSpec
 from racing.track import build_oval
-from racing.telemetry import lap_summary
-from racing.viz import plot_all
 
 track = build_oval()
-spec = VehicleSpec(name="Red", max_speed=420.0, grip=0.99)
-cars = [
-    AICar(spec, track, position=tuple(track.start_position), aggression=0.85),
-    AICar(spec, track, position=tuple(track.start_position), aggression=0.70),
-]
+car = PlayerCar(VehicleSpec(name="Red"), track, position=tuple(track.start_position))
+engine = PhysicsEngine(track)
 
-result = Race(track, cars, GameConfig(laps=3, headless=True)).run()
-telemetry = result.to_frame()
+for _ in range(120):  # two seconds of full throttle
+    car.update_controls(engine.dt, keys={"up"})
+    engine.step([car])
 
-print(lap_summary(telemetry))
-plot_all(telemetry, "output")
+print(f"{car.speed:.0f} px/s, {track.lap_distance(car.position):.0f} px around")
 ```
 
-See `notebooks/demo.ipynb` for a worked example.
+A whole race, with lap counting, runs through `Race`. Any driver that can
+produce a set of key names will do — here, one that chases a point further
+along the centre line:
+
+```python
+import numpy as np
+
+from racing import GameConfig, PlayerCar, Race, VehicleSpec
+from racing.track import build_oval
+
+track = build_oval()
+car = PlayerCar(VehicleSpec(name="Red"), track)
+race = Race(track, [car], GameConfig(laps=2))
+
+
+def follow_the_line(car):
+    """Return the keys needed to head for a point further around the lap."""
+    ahead = track.centre_line[(track.nearest_index(car.position) + 12) % len(track)]
+    step = ahead - car.position
+    wanted = np.degrees(np.arctan2(step[0], -step[1])) % 360.0
+    error = (wanted - car.heading + 180.0) % 360.0 - 180.0
+    return {"up"} | ({"right"} if error > 3 else {"left"} if error < -3 else set())
+
+
+while not race.is_complete() and race.time < 60.0:
+    race.step(keys=follow_the_line(car))
+
+print(f"{car.lap} laps, best {car.best_lap:.2f}s")
+```
 
 ## Design notes
 
 **Vehicles sit behind an abstract base class.** `Vehicle` extends
 `PhysicsBody` and declares one abstract method, `update_controls`.
-`PlayerCar` implements it by reading the keyboard; `AICar` implements it by
-following the racing line. The physics engine only ever sees the abstract
-interface, so a new controller — a replay driver, a recorded ghost — costs
-one subclass and changes nothing else.
-
-**The simulation is completely separate from rendering.** `Race.step()`
-advances the physics at a fixed timestep and knows nothing about pygame.
-`Renderer` is imported only by the interactive command. That separation is
-what makes `simulate` possible, and it means the physics is deterministic:
-the same seed produces the same race every time, regardless of frame rate.
-
-**Audio fails soft.** `AudioManager` catches mixer initialisation failure and
-degrades to silence rather than crashing, which is the normal case on a
-machine with no sound device.
+`PlayerCar` implements it by reading a set of key names — it never imports
+pygame, so it can be driven from a test. The physics engine only ever sees
+the abstract interface, so another controller costs one subclass.
 
 **Handling is tuned through `VehicleSpec`, not through the physics code.**
 Drag and acceleration together settle the car just under its top speed, so
-`max_speed` is a safety net rather than a wall it slams into, and the last
-tenth of the speedometer has to be earned. Grip is the fraction of sideways
-velocity shed per second, raised to the timestep, so it means the same thing
-however often the engine steps.
+`max_speed` is a safety net rather than a wall it slams into. Grip is the
+fraction of sideways velocity shed per second, raised to the timestep, so it
+means the same thing however often the engine steps.
 
-**Telemetry accumulates as plain dicts.** Rows are collected in a list and
-converted to a DataFrame once at the end. Appending to a DataFrame per frame
-would dominate the runtime.
+**Laps are counted by checkpoints, in order.** A car is offered every
+checkpoint it passes near, but accepts only the one it is due to cross next,
+so a lap cannot be claimed by reversing over the line or by cutting the
+corner a checkpoint sits behind.
+
+**The scenery is painted once.** The track, its kerbs and the start line go
+onto their own surface and are blitted from then on; redrawing several
+hundred segments every frame would cost more than the cars do.
 
 ## Project structure
 
@@ -149,15 +140,16 @@ src/racing/
 ├── track/             Track geometry, procedural generation
 ├── game/              Race loop, Renderer, AudioManager
 ├── telemetry/         per-frame recording, pandas analysis
-└── viz/               matplotlib figures (Agg, saved to file)
+└── viz/               matplotlib figures
 ```
 
 ## Development
 
 ```bash
-ruff check .
-ruff format .
+uv pip install -e ".[dev]"
 pytest
+ruff check .
+ruff format --check .
 ```
 
 The test suite runs entirely headless and never opens a window.
