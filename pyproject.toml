@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "racing"
 version = "0.1.0"
-description = "A 2D racing game with a physics engine, AI opponent, and telemetry analysis."
+description = "A 2D racing game with a physics engine, computer opponents, and telemetry analysis."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"

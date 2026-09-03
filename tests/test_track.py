@@ -28,7 +28,7 @@ def test_checkpoints_start_on_the_start_line(track: Track) -> None:
 
 
 def test_racing_line_has_two_columns(track: Track) -> None:
-    assert track.racing_line().shape[1] == 2
+    assert track.racing_line.shape[1] == 2
 
 
 def test_distance_to_the_centre_line_is_zero(track: Track) -> None:
@@ -137,3 +137,36 @@ def test_an_oval_is_about_as_long_as_its_ellipse() -> None:
 def test_a_point_off_track_still_has_a_lap_distance(track: Track) -> None:
     outside = track.centre_line[20] * 1.5
     assert 0.0 <= track.lap_distance(outside) <= track.lap_length
+
+
+def test_the_racing_line_stays_on_the_track(track: Track) -> None:
+    assert all(track.contains(point) for point in track.racing_line)
+
+
+def test_the_racing_line_leaves_room_for_the_car(track: Track) -> None:
+    from racing.config import CAR_WIDTH
+
+    room = track.width / 2 - CAR_WIDTH / 2
+    assert max(track.distance_from_centre(p) for p in track.racing_line) <= room
+
+
+def test_the_racing_line_cuts_inside_the_corners(track: Track) -> None:
+    # An ellipse bends most at the ends of its long axis, so that is where
+    # the line should have moved furthest from the centre line.
+    line = track.racing_line
+    moved = np.linalg.norm(line - track.centre_line, axis=1)
+    assert moved.max() > 1.0
+
+
+def test_the_racing_line_is_shorter_than_the_centre_line(track: Track) -> None:
+    def length(points: np.ndarray) -> float:
+        return float(np.linalg.norm(np.roll(points, -1, axis=0) - points, axis=1).sum())
+
+    assert length(track.racing_line) < length(track.centre_line)
+
+
+def test_the_racing_line_has_no_kink_at_the_start_line(track: Track) -> None:
+    # It is a closed loop, so the smoothing has to wrap rather than truncate.
+    line = track.racing_line
+    steps = np.linalg.norm(np.diff(line, axis=0, append=line[:1]), axis=1)
+    assert steps.max() < 3 * steps.mean()

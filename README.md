@@ -23,7 +23,7 @@ uv pip install -e .
 
 ```bash
 uv run -m racing --help
-uv run -m racing race --track oval --laps 3
+uv run -m racing race --track oval --laps 3 --opponents 2
 ```
 
 | Key | Action |
@@ -45,13 +45,16 @@ what is built. Working today:
   advancing at 60 Hz whatever the frame rate does
 - Steering that scales with speed, so a standing car cannot turn at all and
   a car near its top speed gives up part of its turn rate
-- An oval circuit drawn with kerbs and a chequered start line
+- An oval circuit drawn with kerbs and a chequered start line, with edges
+  that put a car back on the limit and charge it speed for the trouble
 - Lap counting over checkpoints that have to be crossed in order, with lap
   times and a finishing order
+- Computer-driven opponents that follow a racing line cut into the corners,
+  slow for the ones that need it, and steer around each other
 
-Not built yet: track boundaries, the computer-controlled opponent, sound,
-telemetry recording, and the analysis plots. The `simulate`, `analyze` and
-`replay` subcommands are placeholders until those land.
+Not built yet: sound, telemetry recording, and the analysis plots. The
+`simulate`, `analyze` and `replay` subcommands are placeholders until those
+land.
 
 ## Using the package as a library
 
@@ -142,7 +145,7 @@ src/racing/
 ├── config.py          tuning constants, VehicleSpec, GameConfig
 ├── exceptions.py      exception hierarchy
 ├── physics/           PhysicsBody, PhysicsEngine
-├── entities/          Vehicle ABC, PlayerCar, AICar
+├── entities/          Vehicle ABC, PlayerCar, ComputerCar
 ├── track/             Track geometry, procedural generation
 ├── game/              Race loop, Renderer, AudioManager
 ├── telemetry/         per-frame recording, pandas analysis

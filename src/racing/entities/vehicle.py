@@ -3,7 +3,7 @@
 A vehicle is a :class:`~racing.physics.body.PhysicsBody` that also decides
 what its controls should be. Subclasses differ only in how they make that
 decision: :class:`~racing.entities.player.PlayerCar` reads the keyboard,
-:class:`~racing.entities.ai.AICar` follows the racing line. The physics
+:class:`~racing.entities.computer.ComputerCar` follows the racing line. The physics
 engine depends only on this interface, so new controllers can be added
 without changing the simulation.
 """
@@ -86,7 +86,7 @@ class Vehicle(PhysicsBody, ABC):
             Timestep in seconds.
         **context
             Extra information a controller may need, such as pressed keys
-            for a human player or rival positions for the AI.
+            for a human player, or rival positions for a computer driver.
         """
 
     @property

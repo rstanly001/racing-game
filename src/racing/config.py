@@ -49,6 +49,42 @@ GRID_ROW_SPACING = 48.0
 WALL_BOUNCE = 0.25
 WALL_SCRUB = 0.6
 
+# How the computer driver reads the road ahead. It looks one distance ahead
+# to decide where to point, and a longer one to decide how hard the corner
+# is; a bend of CORNER_FULL_ANGLE degrees over that distance counts as the
+# tightest corner there is.
+CORNER_LOOKAHEAD = 260.0
+CORNER_FULL_ANGLE = 75.0
+
+# Fraction of top speed given up in the tightest corner, and the steering
+# error in degrees that calls for full lock. Both were found by sweeping them
+# against lap time and wall contacts: braking harder than this loses more
+# time than the corner ever costs.
+CORNER_SLOWDOWN = 0.30
+FULL_LOCK_ERROR = 16.0
+
+# How far ahead a computer driver notices a rival, and how far to one side it
+# aims to get past. Every driver follows the same racing line, so without a
+# nudge two of them converge on it and travel locked together.
+OVERTAKE_RANGE = 100.0
+OVERTAKE_OFFSET = 34.0
+
+# How nearly straight ahead a rival has to be before it counts as being in
+# the way, as the cosine of the angle off the nose. Without it a driver
+# swerves around cars beside it that it was never going to hit.
+OVERTAKE_CONE = 0.4
+
+# Share of its cornering limit the most timid driver settles for. This is
+# what makes aggression worth setting: at 1.0 every driver would be equally
+# quick and the field would never spread out.
+TIMID_MARGIN = 0.6
+
+# How much of the room between the centre line and the edge a racing line is
+# allowed to use when cutting the inside of a corner, and how many nodes the
+# result is averaged over to smooth it out.
+RACING_LINE_CUT = 0.6
+RACING_LINE_SMOOTHING = 7
+
 # Speed driven into a barrier, in pixels per second, below which the contact
 # counts as a graze: still corrected, but not reported as a collision. The
 # nearest point on a polyline is never exactly perpendicular, so a car running

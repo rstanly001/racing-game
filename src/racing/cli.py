@@ -17,7 +17,9 @@ from collections.abc import Sequence
 
 from racing import __version__
 from racing.config import GameConfig, VehicleSpec
+from racing.entities.computer import ComputerCar
 from racing.entities.player import PlayerCar
+from racing.entities.vehicle import Vehicle
 from racing.exceptions import RacingError
 from racing.game.race import Race
 from racing.track.builder import BUILDERS
@@ -32,6 +34,14 @@ TRACK_CHOICES = ["oval"]
 # Never advance more than this much simulated time in one frame, so a stall
 # cannot make the car teleport once the process catches up.
 MAX_FRAME_TIME = 0.25
+
+# The field, in the order opponents are added: name, colour, and how close to
+# its limit each one drives.
+OPPONENTS = [
+    ("Blue", (64, 110, 220), 0.85),
+    ("Gold", (226, 176, 54), 0.72),
+    ("Green", (76, 176, 96), 0.95),
+]
 
 
 def force_headless() -> None:
@@ -48,7 +58,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Construct the top-level parser and its subcommands."""
     parser = argparse.ArgumentParser(
         prog="racing",
-        description="A 2D racing game with physics, an AI opponent, and telemetry.",
+        description="A 2D racing game with physics, computer opponents, and telemetry.",
     )
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s {__version__}"
@@ -59,14 +69,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    race = subparsers.add_parser("race", help="play interactively against the AI")
+    race = subparsers.add_parser("race", help="play interactively against the computer")
     race.add_argument("--track", choices=TRACK_CHOICES, default=DEFAULT_TRACK)
     race.add_argument("--laps", type=int, default=DEFAULT_LAPS)
     race.add_argument("--no-sound", action="store_true")
     race.add_argument("--seed", type=int, default=42)
+    race.add_argument(
+        "--opponents",
+        type=int,
+        choices=range(len(OPPONENTS) + 1),
+        default=1,
+        help="how many computer-driven cars to race against",
+    )
 
     simulate = subparsers.add_parser(
-        "simulate", help="run a headless AI-vs-AI race and save telemetry"
+        "simulate", help="run a headless race between computer drivers"
     )
     simulate.add_argument("--track", choices=TRACK_CHOICES, default=DEFAULT_TRACK)
     simulate.add_argument("--laps", type=int, default=DEFAULT_LAPS)
@@ -94,9 +111,12 @@ def command_race(args: argparse.Namespace) -> int:
 
     track = BUILDERS[args.track]()
     config = GameConfig(laps=args.laps, sound=not args.no_sound, seed=args.seed)
-    race = Race(track, [PlayerCar(VehicleSpec(name="Red"), track)], config)
+    race = Race(track, build_field(track, args.opponents), config)
     logger.info(
-        "%s, %d lap(s). Arrow keys to drive, Esc to quit.", track.name, config.laps
+        "%s, %d lap(s), %d opponent(s). Arrow keys to drive, Esc to quit.",
+        track.name,
+        config.laps,
+        args.opponents,
     )
 
     with Renderer(caption=f"Racing — {track.name}") as renderer:
@@ -118,6 +138,17 @@ def command_race(args: argparse.Namespace) -> int:
     return 0
 
 
+def build_field(track, opponents: int) -> list[Vehicle]:
+    """Return the player's car followed by ``opponents`` computer drivers."""
+    field: list[Vehicle] = [PlayerCar(VehicleSpec(name="You"), track)]
+
+    for name, colour, aggression in OPPONENTS[:opponents]:
+        spec = VehicleSpec(name=name, colour=colour)
+        field.append(ComputerCar(spec, track, aggression=aggression))
+
+    return field
+
+
 def report_result(race: Race) -> None:
     """Print the finishing order and each car's best lap."""
     for place, car in enumerate(race.standings, start=1):
@@ -126,9 +157,9 @@ def report_result(race: Race) -> None:
 
 
 def command_simulate(args: argparse.Namespace) -> int:
-    """Run a headless AI-vs-AI race and write telemetry to CSV."""
+    """Run a headless race between computer drivers and write telemetry to CSV."""
     force_headless()
-    # TODO: build the track, two AICars with different aggression values,
+    # TODO: build the track, two computer drivers of differing aggression,
     #       Race(...).run(), then write the telemetry and print a summary
     raise NotImplementedError
 

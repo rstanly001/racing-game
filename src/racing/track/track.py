@@ -10,12 +10,28 @@ from pathlib import Path
 
 import numpy as np
 
+from racing.config import CAR_WIDTH, RACING_LINE_CUT, RACING_LINE_SMOOTHING
 from racing.exceptions import TrackError
 
 logger = logging.getLogger(__name__)
 
 # A centre line needs at least this many nodes to close into a loop.
 MIN_NODES = 3
+
+
+def _smooth(points: np.ndarray, window: int) -> np.ndarray:
+    """Return ``points`` averaged over a sliding window, wrapping at the ends.
+
+    The line is a closed loop, so the window is fed from the far end rather
+    than being truncated, which would leave a kink at the start line.
+    """
+    kernel = np.ones(window) / window
+    padded = np.vstack([points[-window:], points, points[:window]])
+    columns = [
+        np.convolve(padded[:, axis], kernel, mode="same")[window:-window]
+        for axis in (0, 1)
+    ]
+    return np.column_stack(columns)
 
 
 class Track:
@@ -196,17 +212,36 @@ class Track:
         offsets = self.normals() * (self.width / 2)
         return self.centre_line + offsets, self.centre_line - offsets
 
+    @cached_property
     def racing_line(self) -> np.ndarray:
         """Return the line a driver aims to follow.
+
+        The centre line is the slow way round: a corner taken on the inside
+        has a larger radius than the corner itself, so it can be taken
+        faster. Each node is pulled toward the middle of its own turn in
+        proportion to how sharply the track bends there, by at most
+        :data:`~racing.config.RACING_LINE_CUT` of the room available, then
+        the whole line is smoothed so the result is drivable rather than a
+        series of kinks.
 
         Returns
         -------
         numpy.ndarray
-            Array of shape ``(n, 2)``. For now this is the centre line; a
-            later version pulls it toward the inside of corners and lets it
-            run wide again on exit.
+            Array of shape ``(n, 2)``, entirely within the track.
         """
-        return self.centre_line.copy()
+        line = self.centre_line
+
+        # The second difference of a curve points toward the centre of its
+        # turn, and its length grows with how tightly the curve bends.
+        inward = np.roll(line, -1, axis=0) + np.roll(line, 1, axis=0) - 2 * line
+        bend = np.linalg.norm(inward, axis=1, keepdims=True)
+        direction = inward / np.where(bend == 0.0, 1.0, bend)
+
+        sharpest = bend.max()
+        strength = bend / sharpest if sharpest else bend
+        room = max(self.width / 2 - CAR_WIDTH, 0.0) * RACING_LINE_CUT
+
+        return _smooth(line + direction * strength * room, RACING_LINE_SMOOTHING)
 
     def distance_from_centre(self, point: np.ndarray) -> float:
         """Return the shortest distance from ``point`` to the centre line.
