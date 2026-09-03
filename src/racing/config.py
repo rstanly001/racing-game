@@ -43,6 +43,23 @@ HIGH_SPEED_STABILITY = 0.45
 GRID_SETBACK = 34.0
 GRID_ROW_SPACING = 48.0
 
+# What happens at the edge of the track: how much of the speed driven into
+# the barrier comes back as a bounce, and the fraction of speed left after a
+# second of scraping along it.
+WALL_BOUNCE = 0.25
+WALL_SCRUB = 0.6
+
+# Speed driven into a barrier, in pixels per second, below which the contact
+# counts as a graze: still corrected, but not reported as a collision. The
+# nearest point on a polyline is never exactly perpendicular, so a car running
+# along a wall always has a trace of speed pointed at it.
+IMPACT_SPEED = 20.0
+
+# How close the centres of two cars may get, treating each body as a circle.
+# Halfway between the car's length and its width: a pair of discs the size of
+# the car itself could never run side by side.
+CONTACT_DISTANCE = (CAR_LENGTH + CAR_WIDTH) / 2
+
 # How near a car must pass to a checkpoint for the crossing to count. Wide
 # enough to catch a car running off the racing line, narrow enough that
 # neighbouring checkpoints never overlap.

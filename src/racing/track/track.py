@@ -228,6 +228,10 @@ class Track:
         _, closest = self._closest(point)
         return float(np.linalg.norm(np.asarray(point, dtype=float) - closest))
 
+    def closest_point(self, point: np.ndarray) -> np.ndarray:
+        """Return the point on the centre line nearest to ``point``."""
+        return self._closest(point)[1]
+
     def _closest(self, point: np.ndarray) -> tuple[int, np.ndarray]:
         """Return the nearest centre-line segment, and the point on it."""
         candidates = self._closest_points(point)

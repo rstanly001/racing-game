@@ -56,21 +56,27 @@ telemetry recording, and the analysis plots. The `simulate`, `analyze` and
 ## Using the package as a library
 
 Everything is exported from the top-level package, so the physics and the
-track can be driven without the game:
+track can be driven without the game. Hold the throttle down and steer
+nowhere, and the car runs out of road:
 
 ```python
 from racing import PhysicsEngine, PlayerCar, VehicleSpec
 from racing.track import build_oval
 
 track = build_oval()
-car = PlayerCar(VehicleSpec(name="Red"), track, position=tuple(track.start_position))
+car = PlayerCar(
+    VehicleSpec(name="Red"),
+    track,
+    position=tuple(track.start_position),
+    heading=track.start_heading,
+)
 engine = PhysicsEngine(track)
 
-for _ in range(120):  # two seconds of full throttle
+for _ in range(180):  # three seconds of throttle and no steering at all
     car.update_controls(engine.dt, keys={"up"})
     engine.step([car])
 
-print(f"{car.speed:.0f} px/s, {track.lap_distance(car.position):.0f} px around")
+print(f"{car.speed:.0f} px/s after {car.collisions} trip(s) into the barrier")
 ```
 
 A whole race, with lap counting, runs through `Race`. Any driver that can

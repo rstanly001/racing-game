@@ -124,3 +124,15 @@ def test_reset_returns_the_car_to_the_grid(race: Race) -> None:
     assert car.checkpoint_index == 0
     assert race.time == pytest.approx(0.0)
     assert car.position == pytest.approx(grid)
+
+
+def test_a_finished_car_stops_counting_laps(race: Race) -> None:
+    car = race.cars[0]
+    race.step()
+    for _ in range(race.config.laps):
+        complete_lap(race)
+    assert race.is_complete()
+
+    finished_on = car.lap
+    complete_lap(race)
+    assert car.lap == finished_on

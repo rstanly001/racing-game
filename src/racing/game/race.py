@@ -179,7 +179,14 @@ class Race:
         Each candidate is offered to the car rather than assumed: the car
         accepts only the one it is due to cross next, so cutting the infield
         past a later checkpoint gains nothing.
+
+        A car that has already finished keeps circulating but stops counting,
+        so its lap tally is what it did in the race rather than how long it
+        was left running afterwards.
         """
+        if car in self.finished:
+            return
+
         deltas = self.track.checkpoints - car.position
         distances = np.einsum("ij,ij->i", deltas, deltas)
 

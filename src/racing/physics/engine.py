@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 import logging
+from itertools import combinations
 from typing import TYPE_CHECKING
 
 import numpy as np
 
 from racing.config import (
+    CAR_WIDTH,
+    CONTACT_DISTANCE,
     HIGH_SPEED_STABILITY,
+    IMPACT_SPEED,
     PHYSICS_DT,
     STEERING_FULL_SPEED,
+    WALL_BOUNCE,
+    WALL_SCRUB,
 )
 from racing.physics.body import unit
 
@@ -56,8 +62,10 @@ class PhysicsEngine:
             self.apply_drag(vehicle)
             vehicle.apply_grip(vehicle.spec.grip, self.dt)
             vehicle.integrate(self.dt)
+            self.resolve_track_collision(vehicle)
 
-        # TODO: resolve track and vehicle collisions once they exist
+        for one, other in combinations(vehicles, 2):
+            self.resolve_vehicle_collision(one, other)
 
     def apply_controls(self, vehicle: Vehicle) -> None:
         """Convert a vehicle's throttle, brake, and steering into motion.
@@ -112,25 +120,81 @@ class PhysicsEngine:
     def resolve_track_collision(self, vehicle: Vehicle) -> bool:
         """Push a vehicle back inside the track if it has left it.
 
+        The barrier is treated as a wall rather than as grass: the car is
+        placed back on the limit, the speed it drove into the wall is taken
+        away, and what is left is scrubbed as it scrapes along. Letting cars
+        run wide onto the infield instead would make every corner optional.
+
         Returns
         -------
         bool
             ``True`` if a collision occurred, so the caller can trigger a
             sound effect and log the event in telemetry.
         """
-        # TODO: implement
-        raise NotImplementedError
+        limit = self.track.width / 2 - CAR_WIDTH / 2
+        centre = self.track.closest_point(vehicle.position)
+        outward = vehicle.position - centre
+        distance = float(np.linalg.norm(outward))
+
+        if distance <= limit:
+            return False
+
+        normal = outward / distance if distance else vehicle.right
+        vehicle.position = centre + normal * limit
+
+        into_wall = float(np.dot(vehicle.velocity, normal))
+        if into_wall <= 0.0:
+            return False  # already leaving; putting it back on the limit is enough
+
+        vehicle.velocity -= normal * into_wall * (1.0 + WALL_BOUNCE)
+        vehicle.velocity *= WALL_SCRUB**self.dt
+
+        # Only speed genuinely aimed at the barrier counts as an impact. A car
+        # sliding along the wall is scraping, and pays for it in lost speed
+        # rather than in a collision.
+        if into_wall < IMPACT_SPEED:
+            return False
+
+        vehicle.collisions += 1
+        return True
 
     def resolve_vehicle_collision(self, a: Vehicle, b: Vehicle) -> bool:
         """Resolve a contact between two vehicles with an elastic impulse.
+
+        Each car is treated as a disc, which at this size is close enough
+        and costs one distance check rather than a polygon overlap test.
 
         Returns
         -------
         bool
             ``True`` if the vehicles were overlapping and were separated.
+            Cars that overlap while moving apart are still pushed off each
+            other, but take no impulse and are not counted as a collision.
         """
-        # TODO: implement using the mass-weighted impulse along the normal
-        raise NotImplementedError
+        gap = b.position - a.position
+        distance = float(np.linalg.norm(gap))
+
+        if not 0.0 < distance < CONTACT_DISTANCE:
+            return False
+
+        normal = gap / distance
+        share = CONTACT_DISTANCE - distance
+
+        # Push them apart in inverse proportion to mass, so a heavy car
+        # gives way less than a light one.
+        total = a.mass + b.mass
+        a.position -= normal * share * (b.mass / total)
+        b.position += normal * share * (a.mass / total)
+
+        closing = float(np.dot(b.velocity - a.velocity, normal))
+        if closing < 0.0:
+            impulse = -(1.0 + WALL_BOUNCE) * closing / (1.0 / a.mass + 1.0 / b.mass)
+            a.velocity -= normal * (impulse / a.mass)
+            b.velocity += normal * (impulse / b.mass)
+            a.collisions += 1
+            b.collisions += 1
+
+        return True
 
     @staticmethod
     def clamp(value: float, low: float, high: float) -> float:

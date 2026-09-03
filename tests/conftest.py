@@ -25,6 +25,21 @@ def track() -> Track:
 
 
 @pytest.fixture
+def open_track() -> Track:
+    """A track so wide that its barriers never come into play.
+
+    Tests of the driving forces use this, so that a car cannot wander into
+    a wall and have its speed changed by something other than the forces
+    being measured.
+    """
+    angles = np.linspace(0.0, 2 * np.pi, 120, endpoint=False)
+    centre_line = np.column_stack(
+        [640.0 + 400.0 * np.cos(angles), 360.0 + 220.0 * np.sin(angles)]
+    )
+    return Track(name="Open", centre_line=centre_line, width=4000.0)
+
+
+@pytest.fixture
 def body() -> PhysicsBody:
     return PhysicsBody(position=(100.0, 100.0), heading=0.0)
 
