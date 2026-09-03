@@ -16,10 +16,10 @@ import sys
 from collections.abc import Sequence
 
 from racing import __version__
-from racing.config import PHYSICS_DT, VehicleSpec
+from racing.config import GameConfig, VehicleSpec
 from racing.entities.player import PlayerCar
 from racing.exceptions import RacingError
-from racing.physics.engine import PhysicsEngine
+from racing.game.race import Race
 from racing.track.builder import BUILDERS
 
 logger = logging.getLogger(__name__)
@@ -93,14 +93,11 @@ def command_race(args: argparse.Namespace) -> int:
     from racing.game.renderer import Renderer
 
     track = BUILDERS[args.track]()
-    car = PlayerCar(
-        VehicleSpec(name="Red"),
-        track,
-        position=tuple(track.start_position),
-        heading=track.start_heading,
+    config = GameConfig(laps=args.laps, sound=not args.no_sound, seed=args.seed)
+    race = Race(track, [PlayerCar(VehicleSpec(name="Red"), track)], config)
+    logger.info(
+        "%s, %d lap(s). Arrow keys to drive, Esc to quit.", track.name, config.laps
     )
-    engine = PhysicsEngine(track)
-    logger.info("%s. Arrow keys to drive, Esc to quit.", track.name)
 
     with Renderer(caption=f"Racing — {track.name}") as renderer:
         pending = 0.0
@@ -109,14 +106,23 @@ def command_race(args: argparse.Namespace) -> int:
             keys = renderer.pressed_keys()
 
             # The physics runs at a fixed rate whatever the frame rate is.
-            while pending >= PHYSICS_DT:
-                car.update_controls(PHYSICS_DT, keys=keys)
-                engine.step([car])
-                pending -= PHYSICS_DT
+            # Once the race is over the window stays up until Esc, so the
+            # final time can be read off the panel.
+            while pending >= race.dt and not race.is_complete():
+                race.step(keys)
+                pending -= race.dt
 
-            renderer.draw(track, [car])
+            renderer.draw(race)
 
+    report_result(race)
     return 0
+
+
+def report_result(race: Race) -> None:
+    """Print the finishing order and each car's best lap."""
+    for place, car in enumerate(race.standings, start=1):
+        best = f"{car.best_lap:.2f}s" if car.best_lap else "no complete lap"
+        print(f"{place}. {car.name}: {car.lap} lap(s), best {best}")
 
 
 def command_simulate(args: argparse.Namespace) -> int:

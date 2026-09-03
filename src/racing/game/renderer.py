@@ -50,6 +50,16 @@ KERB_SEGMENTS = 3
 START_LINE_DEPTH = 9
 START_LINE_SQUARES = 8
 
+# Heads-up display: a panel of readings in the top-left corner.
+HUD_PANEL = (18, 18, 22, 190)
+HUD_LABEL = (150, 152, 160)
+HUD_WIDTH = 190
+HUD_MARGIN = 16
+HUD_PADDING = 12
+HUD_LINE_HEIGHT = 26
+HUD_TEXT_SIZE = 26
+HUD_BANNER_SIZE = 96
+
 KEY_NAMES = {
     pygame.K_UP: "up",
     pygame.K_DOWN: "down",
@@ -61,6 +71,14 @@ KEY_NAMES = {
 def _point(position: np.ndarray) -> tuple[int, int]:
     """Return a position rounded to whole pixels, as pygame wants it."""
     return int(position[0]), int(position[1])
+
+
+def _lap_time(seconds: float | None) -> str:
+    """Return a lap time as ``m:ss.hh``, or dashes if there isn't one yet."""
+    if seconds is None:
+        return "--:--"
+    minutes, remainder = divmod(seconds, 60)
+    return f"{int(minutes)}:{remainder:05.2f}"
 
 
 def _shade(colour: tuple[int, int, int], factor: float) -> tuple[int, int, int]:
@@ -120,7 +138,7 @@ class Renderer:
 
         pygame.display.set_caption(self.caption)
         self.clock = pygame.time.Clock()
-        self.font = pygame.font.Font(None, 26)
+        self.font = pygame.font.Font(None, HUD_TEXT_SIZE)
         logger.debug("opened a %d×%d window", self.width, self.height)
 
     def close(self) -> None:
@@ -256,14 +274,50 @@ class Renderer:
             self._surface().blit(sprite, sprite.get_rect(center=centre))
 
     def draw_hud(self, race: Race) -> None:
-        """Draw lap counter, speed, and lap times."""
-        # TODO: implement
-        raise NotImplementedError
+        """Draw the lap counter, speed, and lap times for the leading human.
 
-    def draw(self, track: Track, cars: Sequence[Vehicle]) -> None:
+        With no human in the race — a simulated field, or a replay — the
+        leader is shown instead, so the panel is never empty.
+        """
+        car = next((one for one in race.cars if one.is_human), race.standings[0])
+        finished = race.is_complete()
+
+        lines = [
+            ("LAP", f"{min(car.lap + 1, race.config.laps)}/{race.config.laps}"),
+            ("SPEED", f"{car.speed:.0f}"),
+            ("LAST", _lap_time(car.lap_times[-1] if car.lap_times else None)),
+            ("BEST", _lap_time(car.best_lap)),
+            ("TIME", _lap_time(race.time)),
+        ]
+        self._draw_panel(lines, banner="FINISHED" if finished else None)
+
+    def _draw_panel(
+        self, lines: Sequence[tuple[str, str]], banner: str | None = None
+    ) -> None:
+        """Draw a translucent panel of label and value pairs, top left."""
+        font = self._typeface()
+        height = HUD_LINE_HEIGHT * len(lines) + 2 * HUD_PADDING
+        panel = pygame.Surface((HUD_WIDTH, height), pygame.SRCALPHA)
+        panel.fill(HUD_PANEL)
+
+        for row, (label, value) in enumerate(lines):
+            y = HUD_PADDING + row * HUD_LINE_HEIGHT
+            panel.blit(font.render(label, True, HUD_LABEL), (HUD_PADDING, y))
+            reading = font.render(value, True, TEXT)
+            panel.blit(reading, reading.get_rect(topright=(HUD_WIDTH - HUD_PADDING, y)))
+
+        self._surface().blit(panel, (HUD_MARGIN, HUD_MARGIN))
+
+        if banner:
+            shout = self._typeface(HUD_BANNER_SIZE).render(banner, True, TEXT)
+            centre = (self.width // 2, self.height // 2)
+            self._surface().blit(shout, shout.get_rect(center=centre))
+
+    def draw(self, race: Race) -> None:
         """Draw one complete frame and flip the display."""
-        self.draw_track(track)
-        self.draw_cars(cars)
+        self.draw_track(race.track)
+        self.draw_cars(race.cars)
+        self.draw_hud(race)
         pygame.display.flip()
 
     def tick(self) -> float:
@@ -271,6 +325,14 @@ class Renderer:
         if self.clock is None:
             raise AssetLoadError("the renderer is not open")
         return self.clock.tick(TARGET_FPS) / 1000.0
+
+    def _typeface(self, size: int = HUD_TEXT_SIZE) -> pygame.font.Font:
+        """Return the HUD font, or one at another size for the finish banner."""
+        if size != HUD_TEXT_SIZE:
+            return pygame.font.Font(None, size)
+        if self.font is None:
+            raise AssetLoadError("the renderer is not open")
+        return self.font
 
     def _surface(self) -> pygame.Surface:
         """Return the window surface, or complain that it is not open yet."""

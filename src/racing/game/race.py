@@ -5,7 +5,15 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from racing.config import PHYSICS_DT, GameConfig
+import numpy as np
+
+from racing.config import (
+    CHECKPOINT_RADIUS,
+    GRID_ROW_SPACING,
+    GRID_SETBACK,
+    PHYSICS_DT,
+    GameConfig,
+)
 from racing.physics.engine import PhysicsEngine
 from racing.telemetry.recorder import Telemetry
 
@@ -16,6 +24,13 @@ if TYPE_CHECKING:
     from racing.track.track import Track
 
 logger = logging.getLogger(__name__)
+
+
+def _ordinal(place: int) -> str:
+    """Return a finishing place as ``1st``, ``2nd``, and so on."""
+    if place % 100 in (11, 12, 13):
+        return f"{place}th"
+    return f"{place}{ {1: 'st', 2: 'nd', 3: 'rd'}.get(place % 10, 'th') }"
 
 
 class RaceResult:
@@ -91,6 +106,51 @@ class Race:
         self.telemetry = Telemetry()
         self.time = 0.0
         self.finished: list[Vehicle] = []
+        self.reset()
+
+    @property
+    def dt(self) -> float:
+        """Return the fixed physics timestep, in seconds."""
+        return self.engine.dt
+
+    @property
+    def standings(self) -> list[Vehicle]:
+        """Return the cars in race order, leader first.
+
+        Finishers keep the order they finished in. Everyone still running is
+        ranked by how far they have got.
+        """
+        running = [car for car in self.cars if car not in self.finished]
+        running.sort(key=self.progress, reverse=True)
+        return self.finished + running
+
+    def progress(self, car: Vehicle) -> tuple[int, int, float]:
+        """Return how far ``car`` has got, as a sortable tuple.
+
+        Laps first, then checkpoints crossed, then how close the car is to
+        the checkpoint it is heading for. Distance around the lap would be
+        the obvious tiebreak, but a car sitting on the grid is just behind
+        the start line, which is nearly a full lap by that measure.
+        """
+        target = self.track.checkpoints[car.checkpoint_index]
+        return (car.lap, car.checkpoint_index, -car.distance_to(target))
+
+    def grid_slot(self, index: int) -> tuple[np.ndarray, float]:
+        """Return the position and heading of the ``index``-th place on the grid.
+
+        Cars are staggered two abreast behind the start line, as they would
+        be on a real grid, so nobody begins the race inside a rival.
+        """
+        row, column = divmod(index, 2)
+        setback = GRID_SETBACK + row * GRID_ROW_SPACING
+        offset = (column - 0.5) * self.track.width / 3
+
+        position = (
+            self.track.start_position
+            - self.track.tangents()[0] * setback
+            + self.track.normals()[0] * offset
+        )
+        return position, self.track.start_heading
 
     def step(self, keys: set[str] | None = None) -> None:
         """Advance the race by one fixed physics timestep.
@@ -101,9 +161,45 @@ class Race:
             Names of keys currently pressed, passed through to any human
             driver. ``None`` in a headless run.
         """
-        # TODO: update controls, step physics, check checkpoints and laps,
-        #       record telemetry, advance self.time
-        raise NotImplementedError
+        for car in self.cars:
+            rivals = [other for other in self.cars if other is not car]
+            car.update_controls(self.dt, keys=keys, rivals=rivals)
+
+        self.engine.step(self.cars)
+        self.time += self.dt
+
+        for car in self.cars:
+            self.register_crossings(car)
+
+        # TODO: record a telemetry row per car once Telemetry.record exists
+
+    def register_crossings(self, car: Vehicle) -> None:
+        """Offer ``car`` every checkpoint it is currently close to.
+
+        Each candidate is offered to the car rather than assumed: the car
+        accepts only the one it is due to cross next, so cutting the infield
+        past a later checkpoint gains nothing.
+        """
+        deltas = self.track.checkpoints - car.position
+        distances = np.einsum("ij,ij->i", deltas, deltas)
+
+        for index in np.flatnonzero(distances <= CHECKPOINT_RADIUS**2):
+            if car.register_checkpoint(int(index), self.time):
+                self.finish(car)
+
+    def finish(self, car: Vehicle) -> None:
+        """Retire ``car`` from the race if it has completed every lap."""
+        if car.lap < self.config.laps or car in self.finished:
+            return
+
+        self.finished.append(car)
+        logger.info(
+            "%s finished %s of %d in %.1fs",
+            car.name,
+            _ordinal(len(self.finished)),
+            len(self.cars),
+            self.time,
+        )
 
     def is_complete(self) -> bool:
         """Return whether every car has finished the required laps."""
@@ -127,10 +223,32 @@ class Race:
         RaceResult
             The finishing order and the full telemetry recording.
         """
-        # TODO: loop self.step() until is_complete() or the time limit
-        raise NotImplementedError
+        while not self.is_complete() and self.time < max_seconds:
+            self.step()
+
+        if not self.is_complete():
+            logger.warning(
+                "stopped after %.0fs with %d car(s) still running",
+                max_seconds,
+                len(self.cars) - len(self.finished),
+            )
+
+        return RaceResult(self.standings, self.telemetry, self.time)
 
     def reset(self) -> None:
         """Return every car to the grid and clear the recording."""
-        # TODO: implement
-        raise NotImplementedError
+        for index, car in enumerate(self.cars):
+            position, heading = self.grid_slot(index)
+            car.position = np.array(position, dtype=float)
+            car.velocity = np.zeros(2, dtype=float)
+            car.heading = heading
+            car.throttle = car.brake = car.steering = 0.0
+            car.lap = 0
+            car.lap_times.clear()
+            car.checkpoint_index = 0
+            car.lap_started = None
+            car.collisions = 0
+
+        self.telemetry = Telemetry()
+        self.time = 0.0
+        self.finished.clear()

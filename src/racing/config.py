@@ -38,6 +38,16 @@ STEERING_FULL_SPEED = 120.0
 # at 400 as at 150 feel weightless, and make every corner trivial.
 HIGH_SPEED_STABILITY = 0.45
 
+# Grid layout, in pixels: how far the front row sits behind the start line,
+# and the gap back to each row behind it.
+GRID_SETBACK = 34.0
+GRID_ROW_SPACING = 48.0
+
+# How near a car must pass to a checkpoint for the crossing to count. Wide
+# enough to catch a car running off the racing line, narrow enough that
+# neighbouring checkpoints never overlap.
+CHECKPOINT_RADIUS = 90.0
+
 
 @dataclass(frozen=True)
 class VehicleSpec:
