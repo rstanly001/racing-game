@@ -1,4 +1,4 @@
-"""Race orchestration, rendering, and audio."""
+"""Race orchestration and rendering."""
 
 from racing.game.race import Race, RaceResult
 

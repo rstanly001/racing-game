@@ -1,7 +1,7 @@
 """Shared fixtures.
 
 Everything here is built in memory, so the suite never opens a window,
-touches audio, or reads a file.
+opens a file, or needs a display.
 """
 
 import numpy as np
@@ -46,4 +46,4 @@ def body() -> PhysicsBody:
 
 @pytest.fixture
 def config() -> GameConfig:
-    return GameConfig(laps=1, headless=True, sound=False, seed=1)
+    return GameConfig(laps=1)

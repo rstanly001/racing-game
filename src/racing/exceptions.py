@@ -14,7 +14,7 @@ class TrackError(RacingError):
 
 
 class AssetLoadError(RacingError):
-    """Raised when a sprite or sound file cannot be loaded."""
+    """Raised when a display or an asset cannot be opened."""
 
 
 class TelemetryError(RacingError):

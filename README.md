@@ -1,11 +1,12 @@
 # Racing
 
-A 2D top-down racing game with a physics engine and lap timing, written as
-an installable Python package.
+A 2D top-down racing game with a physics engine, computer opponents, and a
+telemetry system that records every frame of a race and turns it into
+analysis plots.
 
-The simulation is kept separate from the rendering: a race is stepped at a
-fixed rate that has nothing to do with the frame rate, which is what will
-later let the same race run with no window at all.
+The simulation is kept separate from the rendering, so the same race can be
+played in a window or run with no display at all. That is what makes the
+analysis work anywhere.
 
 Final project for *Introduction to Python*, TU Dortmund.
 
@@ -24,7 +25,22 @@ uv pip install -e .
 ```bash
 uv run -m racing --help
 uv run -m racing race --track oval --laps 3 --opponents 2
+uv run -m racing simulate --track figure_eight --laps 3
+uv run -m racing analyze
 ```
+
+| Command | What it does | Needs a display |
+| --- | --- | --- |
+| `race` | Play against the computer | Yes |
+| `simulate` | Race two computer drivers with no window, write telemetry to CSV | No |
+| `analyze` | Read that CSV, print summaries, write the figures | No |
+
+`simulate` followed by `analyze` exercises the whole package and produces
+every figure without needing a screen.
+
+Two circuits are available, `oval` and `figure_eight`.
+
+### Controls
 
 | Key | Action |
 | --- | --- |
@@ -36,80 +52,46 @@ uv run -m racing race --track oval --laps 3 --opponents 2
 The panel in the corner shows the lap counter, speed, last and best lap
 times, and elapsed race time. The finishing order is printed on exit.
 
-## Status
+## Generated output
 
-This is a project under construction, and the sections below describe only
-what is built. Working today:
+No figure is ever displayed; the Agg backend is selected before pyplot is
+imported, and everything is written to disk. These files are committed to
+the repository.
 
-- Fixed-timestep physics: acceleration, braking, lateral grip and drag,
-  advancing at 60 Hz whatever the frame rate does
-- Steering that scales with speed, so a standing car cannot turn at all and
-  a car near its top speed gives up part of its turn rate
-- An oval circuit drawn with kerbs and a chequered start line, with edges
-  that put a car back on the limit and charge it speed for the trouble
-- Lap counting over checkpoints that have to be crossed in order, with lap
-  times and a finishing order
-- Computer-driven opponents that follow a racing line cut into the corners,
-  slow for the ones that need it, and steer around each other
+| File | Contents |
+| --- | --- |
+| `output/telemetry.csv` | Per-frame recording: position, speed, inputs, lap |
+| `output/speed_trace.png` | Both cars' speed against lap distance, best laps |
+| `output/racing_line.png` | The path each car drove, coloured by speed |
+| `output/lap_times.png` | Lap time by lap number, one line per car |
+| `output/inputs.png` | Throttle, brake and steering over the fastest lap |
 
-Not built yet: sound, telemetry recording, and the analysis plots. The
-`simulate`, `analyze` and `replay` subcommands are placeholders until those
-land.
+Aligning the speed trace by distance rather than by time is what makes the
+two cars comparable: the same x value is the same corner for both.
+
+![Speed on each car's best lap](output/speed_trace.png)
+
+![The path each car drove, coloured by speed](output/racing_line.png)
 
 ## Using the package as a library
 
-Everything is exported from the top-level package, so the physics and the
-track can be driven without the game. Hold the throttle down and steer
-nowhere, and the car runs out of road:
+Everything is exported from the top-level package, so a race can be run and
+analysed without the game:
 
 ```python
-from racing import PhysicsEngine, PlayerCar, VehicleSpec
+from racing import ComputerCar, GameConfig, Race, VehicleSpec
+from racing.telemetry import lap_summary
 from racing.track import build_oval
 
 track = build_oval()
-car = PlayerCar(
-    VehicleSpec(name="Red"),
-    track,
-    position=tuple(track.start_position),
-    heading=track.start_heading,
-)
-engine = PhysicsEngine(track)
+cars = [
+    ComputerCar(VehicleSpec(name="Red"), track, aggression=0.9),
+    ComputerCar(VehicleSpec(name="Blue"), track, aggression=0.7),
+]
 
-for _ in range(180):  # three seconds of throttle and no steering at all
-    car.update_controls(engine.dt, keys={"up"})
-    engine.step([car])
-
-print(f"{car.speed:.0f} px/s after {car.collisions} trip(s) into the barrier")
-```
-
-A whole race, with lap counting, runs through `Race`. Any driver that can
-produce a set of key names will do — here, one that chases a point further
-along the centre line:
-
-```python
-import numpy as np
-
-from racing import GameConfig, PlayerCar, Race, VehicleSpec
-from racing.track import build_oval
-
-track = build_oval()
-car = PlayerCar(VehicleSpec(name="Red"), track)
-race = Race(track, [car], GameConfig(laps=2))
-
-
-def follow_the_line(car):
-    """Return the keys needed to head for a point further around the lap."""
-    ahead = track.centre_line[(track.nearest_index(car.position) + 12) % len(track)]
-    step = ahead - car.position
-    wanted = np.degrees(np.arctan2(step[0], -step[1])) % 360.0
-    error = (wanted - car.heading + 180.0) % 360.0 - 180.0
-    return {"up"} | ({"right"} if error > 3 else {"left"} if error < -3 else set())
-
-
-while not race.is_complete() and race.time < 60.0:
-    race.step(keys=follow_the_line(car))
-
-print(f"{car.lap} laps, best {car.best_lap:.2f}s")
+result = Race(track, cars, GameConfig(laps=3)).run()
+print(result.winner.name)
+print(lap_summary(result.to_frame()).round(2))
 ```
 
 ## Design notes
@@ -117,8 +99,9 @@ print(f"{car.lap} laps, best {car.best_lap:.2f}s")
 **Vehicles sit behind an abstract base class.** `Vehicle` extends
 `PhysicsBody` and declares one abstract method, `update_controls`.
 `PlayerCar` implements it by reading a set of key names — it never imports
-pygame, so it can be driven from a test. The physics engine only ever sees
-the abstract interface, so another controller costs one subclass.
+pygame, so it can be driven from a test; `ComputerCar` implements it by
+following a racing line. The physics engine only ever sees the abstract
+interface, so another controller costs one subclass.
 
 **Handling is tuned through `VehicleSpec`, not through the physics code.**
 Drag and acceleration together settle the car just under its top speed, so
@@ -127,13 +110,13 @@ fraction of sideways velocity shed per second, raised to the timestep, so it
 means the same thing however often the engine steps.
 
 **Laps are counted by checkpoints, in order.** A car is offered every
-checkpoint it passes near, but accepts only the one it is due to cross next,
+checkpoint it passes near but accepts only the one it is due to cross next,
 so a lap cannot be claimed by reversing over the line or by cutting the
 corner a checkpoint sits behind.
 
-**The scenery is painted once.** The track, its kerbs and the start line go
-onto their own surface and are blitted from then on; redrawing several
-hundred segments every frame would cost more than the cars do.
+**Telemetry accumulates as plain dicts.** Rows are collected in a list and
+converted to a DataFrame once at the end; appending to a DataFrame every
+frame would cost more than the physics does.
 
 ## Project structure
 
@@ -147,7 +130,7 @@ src/racing/
 ├── physics/           PhysicsBody, PhysicsEngine
 ├── entities/          Vehicle ABC, PlayerCar, ComputerCar
 ├── track/             Track geometry, procedural generation
-├── game/              Race loop, Renderer, AudioManager
+├── game/              Race loop, Renderer
 ├── telemetry/         per-frame recording, pandas analysis
 └── viz/               matplotlib figures
 ```

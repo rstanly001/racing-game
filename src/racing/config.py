@@ -197,19 +197,9 @@ class GameConfig:
     ----------
     laps
         Number of laps to complete.
-    headless
-        If ``True``, run with no window and no audio. Required for grading
-        on a machine with no display.
-    sound
-        Whether to play engine and collision audio. Ignored when headless.
-    seed
-        Seed for any randomness, so a run is exactly reproducible.
     record_telemetry
         Whether to record per-frame telemetry.
     """
 
     laps: int = 3
-    headless: bool = False
-    sound: bool = True
-    seed: int | None = 42
     record_telemetry: bool = True

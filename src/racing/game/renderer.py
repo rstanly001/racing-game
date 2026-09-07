@@ -103,7 +103,7 @@ class Renderer:
 
         with Renderer() as renderer:
             while renderer.poll_events():
-                renderer.draw(cars)
+                renderer.draw(race)
     """
 
     def __init__(
@@ -276,8 +276,8 @@ class Renderer:
     def draw_hud(self, race: Race) -> None:
         """Draw the lap counter, speed, and lap times for the leading human.
 
-        With no human in the race — a simulated field, or a replay — the
-        leader is shown instead, so the panel is never empty.
+        With no human in the race, as in a simulated field, the leader is
+        shown instead, so the panel is never empty.
         """
         car = next((one for one in race.cars if one.is_human), race.standings[0])
         finished = race.is_complete()

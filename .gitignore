@@ -19,5 +19,5 @@ COMMIT_PLAN.md
 # pyproject.toml, which is what an installer reads.
 uv.lock
 
-# Generated figures and telemetry ARE committed on purpose.
-# Do not ignore output/.
+# The generated figures and telemetry in output/ are committed on purpose,
+# so they are deliberately not ignored here.

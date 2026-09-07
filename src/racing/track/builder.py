@@ -11,6 +11,10 @@ import numpy as np
 
 from racing.track.track import Track
 
+# How tall a figure-eight is next to its width. The bare curve is half as
+# tall as it is wide, which leaves the two loops too tight to drive.
+HEIGHT_RATIO = 0.62
+
 
 def build_oval(
     name: str = "Oval",
@@ -65,39 +69,42 @@ def build_figure_eight(
     n_points: int = 240,
     width: float = 110.0,
 ) -> Track:
-    """Generate a figure-of-eight circuit from a lemniscate curve."""
-    # TODO: implement with the parametric lemniscate of Gerono
-    raise NotImplementedError
+    """Generate a figure-of-eight circuit from a lemniscate curve.
 
-
-def build_random(
-    seed: int | None = None,
-    n_control: int = 8,
-    n_points: int = 240,
-    width: float = 120.0,
-) -> Track:
-    """Generate a random closed circuit.
-
-    Places control points around a circle with randomised radii, then
-    smooths them into a closed loop.
+    The lemniscate of Gerono, ``x = cos t`` and ``y = sin t cos t``, is a
+    closed loop that crosses itself once, which the renderer handles because
+    the track surface is laid down segment by segment rather than as one
+    filled polygon.
 
     Parameters
     ----------
-    seed
-        Seed for reproducibility.
-    n_control
-        Number of control points before smoothing.
+    name
+        Display name.
+    centre
+        Centre of the figure.
+    scale
+        Half the overall width, in pixels.
     n_points
-        Number of nodes in the final centre line.
+        Number of centre-line nodes.
     width
         Track width in pixels.
+
+    Returns
+    -------
+    Track
+        The generated circuit.
     """
-    # TODO: implement with np.random.default_rng(seed)
-    raise NotImplementedError
+    angles = np.linspace(0.0, 2 * np.pi, n_points, endpoint=False)
+    centre_line = np.column_stack(
+        [
+            centre[0] + scale * np.cos(angles),
+            centre[1] + 2 * scale * HEIGHT_RATIO * np.sin(angles) * np.cos(angles),
+        ]
+    )
+    return Track(name=name, centre_line=centre_line, width=width)
 
 
 BUILDERS = {
     "oval": build_oval,
     "figure_eight": build_figure_eight,
-    "random": build_random,
 }

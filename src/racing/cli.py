@@ -28,8 +28,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_LAPS = 3
 DEFAULT_TRACK = "oval"
-# Extended as the remaining builders in racing.track.builder are written.
-TRACK_CHOICES = ["oval"]
+TRACK_CHOICES = list(BUILDERS)
 
 # Never advance more than this much simulated time in one frame, so a stall
 # cannot make the car teleport once the process catches up.
@@ -72,8 +71,6 @@ def build_parser() -> argparse.ArgumentParser:
     race = subparsers.add_parser("race", help="play interactively against the computer")
     race.add_argument("--track", choices=TRACK_CHOICES, default=DEFAULT_TRACK)
     race.add_argument("--laps", type=int, default=DEFAULT_LAPS)
-    race.add_argument("--no-sound", action="store_true")
-    race.add_argument("--seed", type=int, default=42)
     race.add_argument(
         "--opponents",
         type=int,
@@ -87,7 +84,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     simulate.add_argument("--track", choices=TRACK_CHOICES, default=DEFAULT_TRACK)
     simulate.add_argument("--laps", type=int, default=DEFAULT_LAPS)
-    simulate.add_argument("--seed", type=int, default=42)
     simulate.add_argument("--output", default="output/telemetry.csv")
 
     analyze = subparsers.add_parser(
@@ -95,10 +91,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     analyze.add_argument("--input", default="output/telemetry.csv")
     analyze.add_argument("--output-dir", default="output")
-
-    replay = subparsers.add_parser("replay", help="re-render a saved telemetry file")
-    replay.add_argument("--input", default="output/telemetry.csv")
-    replay.add_argument("--speed", type=float, default=1.0)
 
     return parser
 
@@ -110,7 +102,7 @@ def command_race(args: argparse.Namespace) -> int:
     from racing.game.renderer import Renderer
 
     track = BUILDERS[args.track]()
-    config = GameConfig(laps=args.laps, sound=not args.no_sound, seed=args.seed)
+    config = GameConfig(laps=args.laps)
     race = Race(track, build_field(track, args.opponents), config)
     logger.info(
         "%s, %d lap(s), %d opponent(s). Arrow keys to drive, Esc to quit.",
@@ -161,7 +153,7 @@ def command_simulate(args: argparse.Namespace) -> int:
     force_headless()
 
     track = BUILDERS[args.track]()
-    config = GameConfig(laps=args.laps, headless=True, sound=False, seed=args.seed)
+    config = GameConfig(laps=args.laps)
     cars = [
         ComputerCar(VehicleSpec(name=name, colour=colour), track, aggression=aggression)
         for name, colour, aggression in OPPONENTS[:2]
@@ -202,17 +194,10 @@ def command_analyze(args: argparse.Namespace) -> int:
     return 0
 
 
-def command_replay(args: argparse.Namespace) -> int:
-    """Re-render a saved race from its telemetry."""
-    # TODO: implement
-    raise NotImplementedError
-
-
 COMMANDS = {
     "race": command_race,
     "simulate": command_simulate,
     "analyze": command_analyze,
-    "replay": command_replay,
 }
 
 

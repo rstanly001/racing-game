@@ -88,7 +88,7 @@ class Race:
 
     Examples
     --------
-    >>> race = Race(track, [red, blue], GameConfig(laps=3, headless=True))
+    >>> race = Race(track, [red, blue], GameConfig(laps=3))
     >>> result = race.run()
     >>> result.winner.name
     """
@@ -237,8 +237,7 @@ class Race:
         """Run the race to completion without rendering.
 
         This is the headless path used by the ``simulate`` command. It runs
-        as fast as the CPU allows, with no window, no audio, and no frame
-        limiter.
+        as fast as the CPU allows, with no window and no frame limiter.
 
         Parameters
         ----------

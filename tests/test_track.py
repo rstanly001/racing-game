@@ -170,3 +170,26 @@ def test_the_racing_line_has_no_kink_at_the_start_line(track: Track) -> None:
     line = track.racing_line
     steps = np.linalg.norm(np.diff(line, axis=0, append=line[:1]), axis=1)
     assert steps.max() < 3 * steps.mean()
+
+
+def test_a_figure_eight_crosses_itself() -> None:
+    # Its two loops meet in the middle, so a node on one loop has a node
+    # from the other within a track width of it.
+    from racing.track import build_figure_eight
+
+    eight = build_figure_eight()
+    middle = eight.centre_line[len(eight) // 4]
+    others = np.linalg.norm(eight.centre_line - middle, axis=1)
+
+    assert eight.contains(middle)
+    assert np.sort(others)[1:20].max() < eight.width * 3
+
+
+def test_both_builders_make_drivable_circuits() -> None:
+    from racing.track import BUILDERS
+
+    for name, build in BUILDERS.items():
+        track = build()
+        assert track.lap_length > 0, name
+        assert all(track.contains(node) for node in track), name
+        assert all(track.contains(point) for point in track.racing_line), name

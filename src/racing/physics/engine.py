@@ -195,8 +195,3 @@ class PhysicsEngine:
             b.collisions += 1
 
         return True
-
-    @staticmethod
-    def clamp(value: float, low: float, high: float) -> float:
-        """Return ``value`` restricted to the range ``[low, high]``."""
-        return float(np.clip(value, low, high))

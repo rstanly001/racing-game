@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import json  # noqa: F401  (used once load/save are implemented)
 import logging
 from collections.abc import Iterator
 from functools import cached_property
-from pathlib import Path
 
 import numpy as np
 
@@ -94,33 +92,6 @@ class Track:
         self.centre_line = centre_line
         self.width = float(width)
         self.n_checkpoints = n_checkpoints
-
-    @classmethod
-    def load(cls, path: Path | str) -> Track:
-        """Load a track from a JSON file.
-
-        Parameters
-        ----------
-        path
-            Path to the track definition.
-
-        Returns
-        -------
-        Track
-            The loaded circuit.
-
-        Raises
-        ------
-        TrackError
-            If the file is missing or does not contain a valid definition.
-        """
-        # TODO: implement, wrapping json and key errors in TrackError
-        raise NotImplementedError
-
-    def save(self, path: Path | str) -> Path:
-        """Write this track to a JSON file and return the path."""
-        # TODO: implement
-        raise NotImplementedError
 
     @cached_property
     def segment_lengths(self) -> np.ndarray:
