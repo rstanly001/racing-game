@@ -178,8 +178,28 @@ def command_simulate(args: argparse.Namespace) -> int:
 
 def command_analyze(args: argparse.Namespace) -> int:
     """Load telemetry, print summaries, and write every plot."""
-    # TODO: implement with racing.telemetry.analysis and racing.viz.plots
-    raise NotImplementedError
+    # Imported here so that matplotlib is only loaded by the command that
+    # needs it, which keeps `import racing` cheap.
+    from racing.telemetry import Telemetry, lap_summary, race_summary, sector_times
+    from racing.viz import plot_all
+
+    telemetry = Telemetry.from_csv(args.input)
+    print(f"{len(telemetry)} rows from {args.input}")
+
+    for heading, table in (
+        ("Race", race_summary(telemetry)),
+        ("Laps", lap_summary(telemetry)),
+        ("Sectors", sector_times(telemetry)),
+    ):
+        print()
+        print(f"== {heading} ==")
+        print(table.round(2).to_string())
+
+    print()
+    for path in plot_all(telemetry, args.output_dir):
+        print(f"wrote {path}")
+
+    return 0
 
 
 def command_replay(args: argparse.Namespace) -> int:

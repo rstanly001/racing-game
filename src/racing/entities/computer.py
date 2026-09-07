@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 
 from racing.config import (
+    BRAKE_MARGIN,
     CORNER_FULL_ANGLE,
     CORNER_LOOKAHEAD,
     CORNER_SLOWDOWN,
@@ -15,6 +16,7 @@ from racing.config import (
     OVERTAKE_CONE,
     OVERTAKE_OFFSET,
     OVERTAKE_RANGE,
+    THROTTLE_HYSTERESIS,
     TIMID_MARGIN,
 )
 from racing.entities.vehicle import Vehicle
@@ -144,5 +146,13 @@ class ComputerCar(Vehicle):
         self.steering = float(np.clip(error / FULL_LOCK_ERROR, -1.0, 1.0))
 
         limit = self.target_speed()
-        self.throttle = 0.0 if self.speed > limit else 1.0
-        self.brake = 1.0 if self.speed > limit * 1.05 else 0.0
+
+        # Lift off above the target, but wait for a clear gap before getting
+        # back on it. Switching on the target alone makes the throttle
+        # chatter every frame all the way through a corner.
+        if self.speed > limit:
+            self.throttle = 0.0
+        elif self.speed < limit * THROTTLE_HYSTERESIS:
+            self.throttle = 1.0
+
+        self.brake = 1.0 if self.speed > limit * BRAKE_MARGIN else 0.0

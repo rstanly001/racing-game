@@ -74,6 +74,15 @@ OVERTAKE_OFFSET = 34.0
 # swerves around cars beside it that it was never going to hit.
 OVERTAKE_CONE = 0.4
 
+# Once a computer driver lifts off, it waits until it has fallen this far
+# below its target before picking the throttle back up. Without the gap it
+# sits exactly on the limit, flicking the throttle on and off every frame.
+THROTTLE_HYSTERESIS = 0.97
+
+# How far over its target a driver has to be before it brakes rather than
+# simply lifting off.
+BRAKE_MARGIN = 1.05
+
 # Share of its cornering limit the most timid driver settles for. This is
 # what makes aggression worth setting: at 1.0 every driver would be equally
 # quick and the field would never spread out.
