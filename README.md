@@ -8,8 +8,6 @@ The simulation is kept separate from the rendering, so the same race can be
 played in a window or run with no display at all. That is what makes the
 analysis work anywhere.
 
-Final project for *Introduction to Python*, TU Dortmund.
-
 ## Installation
 
 Requires Python 3.10 or newer.
