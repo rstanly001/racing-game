@@ -161,6 +161,8 @@ class Race:
             Names of keys currently pressed, passed through to any human
             driver. ``None`` in a headless run.
         """
+        before = {car.name: car.collisions for car in self.cars}
+
         for car in self.cars:
             rivals = [other for other in self.cars if other is not car]
             car.update_controls(self.dt, keys=keys, rivals=rivals)
@@ -171,7 +173,26 @@ class Race:
         for car in self.cars:
             self.register_crossings(car)
 
-        # TODO: record a telemetry row per car once Telemetry.record exists
+        if self.config.record_telemetry:
+            self.record(before)
+
+    def record(self, contacts: dict[str, int]) -> None:
+        """Append one telemetry row per car for the step just taken.
+
+        Parameters
+        ----------
+        contacts
+            Each car's collision count before the step, so a contact during
+            it can be flagged on the row it happened on rather than only
+            showing up as a running total.
+        """
+        for car in self.cars:
+            self.telemetry.record(
+                self.time,
+                car,
+                lap_distance=self.track.lap_distance(car.position),
+                collision=car.collisions > contacts[car.name],
+            )
 
     def register_crossings(self, car: Vehicle) -> None:
         """Offer ``car`` every checkpoint it is currently close to.

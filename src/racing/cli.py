@@ -134,7 +134,7 @@ def command_race(args: argparse.Namespace) -> int:
 
             renderer.draw(race)
 
-    report_result(race)
+    report_result(race.standings)
     return 0
 
 
@@ -149,9 +149,9 @@ def build_field(track, opponents: int) -> list[Vehicle]:
     return field
 
 
-def report_result(race: Race) -> None:
-    """Print the finishing order and each car's best lap."""
-    for place, car in enumerate(race.standings, start=1):
+def report_result(order: Sequence[Vehicle]) -> None:
+    """Print a finishing order, one line per car."""
+    for place, car in enumerate(order, start=1):
         best = f"{car.best_lap:.2f}s" if car.best_lap else "no complete lap"
         print(f"{place}. {car.name}: {car.lap} lap(s), best {best}")
 
@@ -159,9 +159,21 @@ def report_result(race: Race) -> None:
 def command_simulate(args: argparse.Namespace) -> int:
     """Run a headless race between computer drivers and write telemetry to CSV."""
     force_headless()
-    # TODO: build the track, two computer drivers of differing aggression,
-    #       Race(...).run(), then write the telemetry and print a summary
-    raise NotImplementedError
+
+    track = BUILDERS[args.track]()
+    config = GameConfig(laps=args.laps, headless=True, sound=False, seed=args.seed)
+    cars = [
+        ComputerCar(VehicleSpec(name=name, colour=colour), track, aggression=aggression)
+        for name, colour, aggression in OPPONENTS[:2]
+    ]
+
+    result = Race(track, cars, config).run()
+    path = result.telemetry.to_csv(args.output)
+
+    print(f"{track.name}, {config.laps} laps, {len(cars)} cars")
+    report_result(result.finish_order)
+    print(f"{len(result.telemetry)} rows of telemetry written to {path}")
+    return 0
 
 
 def command_analyze(args: argparse.Namespace) -> int:
